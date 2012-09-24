@@ -1,4 +1,4 @@
-// ERROR: Not supported in C#: OptionDeclaration
+using System.Collections.Generic;
 
 namespace GOLDEngine.Tables
 {
@@ -43,10 +43,10 @@ namespace GOLDEngine.Tables
         }
     }
 
-    internal class LRState : ArrayList
+    internal class LRState : List<LRAction>
     {
 
-        public new short IndexOf(Symbol Item)
+        public short IndexOf(Symbol Item)
         {
             //Returns the index of SymbolIndex in the table, -1 if not found
             short n = 0;
@@ -57,7 +57,7 @@ namespace GOLDEngine.Tables
             Found = false;
             while ((!Found) & n < base.Count)
             {
-                if (Item.Equals(base.Item(n).Symbol))
+                if (Item.Equals(base[n].Symbol))
                 {
                     Index = n;
                     Found = true;
@@ -75,25 +75,15 @@ namespace GOLDEngine.Tables
             }
         }
 
-        public new void Add(LRAction Action)
-        {
-            base.Add(Action);
-        }
-
-        public new LRAction this[short Index]
-        {
-            get { return base.Item(Index); }
-            set { base.Item(Index) = value; }
-        }
-
-        public new LRAction this[Symbol Sym]
+        // This method is an overload of the indexer defined in the base class, i.e. List<LRAction>.this[int index]
+        internal LRAction this[Symbol Sym]
         {
             get
             {
                 int Index = IndexOf(Sym);
                 if (Index != -1)
                 {
-                    return base.Item(Index);
+                    return base[Index];
                 }
                 else
                 {
@@ -105,17 +95,16 @@ namespace GOLDEngine.Tables
                 int Index = IndexOf(Sym);
                 if (Index != -1)
                 {
-                    base.Item(Index) = value;
+                    base[Index] = value;
                 }
             }
         }
     }
 
-    internal class LRStateList : ArrayList
+    internal class LRStateList : List<LRState>
     {
-
-
         public short InitialState;
+
         public LRStateList()
             : base()
         {
@@ -140,24 +129,5 @@ namespace GOLDEngine.Tables
                 base.Add(null);
             }
         }
-
-        public new LRState this[int Index]
-        {
-            get { return base.Item(Index); }
-
-            set { base.Item(Index) = value; }
-        }
-
-        public new int Add(ref LRState Item)
-        {
-            return base.Add(Item);
-        }
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

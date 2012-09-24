@@ -1,4 +1,4 @@
-// ERROR: Not supported in C#: OptionDeclaration
+using System.Collections.Generic;
 
 namespace GOLDEngine.Tables
 {
@@ -40,25 +40,7 @@ namespace GOLDEngine.Tables
         }
     }
 
-    internal class FAEdgeList : ArrayList
+    internal class FAEdgeList : List<FAEdge>
     {
-
-        public new FAEdge this[int Index]
-        {
-            get { return base.Item(Index); }
-            set { base.Item(Index) = value; }
-        }
-
-        public new int Add(FAEdge Edge)
-        {
-            return base.Add(Edge);
-        }
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

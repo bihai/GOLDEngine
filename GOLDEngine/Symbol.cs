@@ -1,5 +1,7 @@
-// ERROR: Not supported in C#: OptionDeclaration
+using System.Collections.Generic;
 using System.ComponentModel;
+
+using GOLDEngine.Tables;
 
 namespace GOLDEngine
 {
@@ -92,7 +94,7 @@ namespace GOLDEngine
                     Result = "<" + Name() + ">";
                     break;
                 case SymbolType.Content:
-                    Result = LiteralFormat(Name, AlwaysDelimitTerminals);
+                    Result = LiteralFormat(Name(), AlwaysDelimitTerminals);
                     break;
                 default:
                     Result = "(" + Name() + ")";
@@ -122,8 +124,8 @@ namespace GOLDEngine
                 n = 0;
                 while (n < Source.Length & (!ForceDelimit))
                 {
-                    ch = Source.Chars(n);
-                    ForceDelimit = !(char.IsLetter(ch) | ch == "." | ch == "_" | ch == "-");
+                    ch = Source[n];
+                    ForceDelimit = !(char.IsLetter(ch) | ch == '.' | ch == '_' | ch == '-');
                     n += 1;
                 }
 
@@ -147,16 +149,16 @@ namespace GOLDEngine
     public class SymbolList
     {
         //CANNOT inherit, must hide methods that edit the list
-        private ArrayList m_Array;
+        private List<Symbol> m_Array;
 
         internal SymbolList()
         {
-            m_Array = new ArrayList();
+            m_Array = new List<Symbol>();
         }
 
         internal SymbolList(int Size)
         {
-            m_Array = new ArrayList();
+            m_Array = new List<Symbol>();
             ReDimension(Size);
         }
 
@@ -179,7 +181,7 @@ namespace GOLDEngine
             {
                 if (Index >= 0 & Index < m_Array.Count)
                 {
-                    return m_Array(Index);
+                    return m_Array[Index];
                 }
                 else
                 {
@@ -187,7 +189,7 @@ namespace GOLDEngine
                 }
             }
 
-            internal set { m_Array(Index) = value; }
+            internal set { m_Array[Index] = value; }
         }
 
         [Description("Returns the total number of symbols in the list.")]
@@ -201,9 +203,9 @@ namespace GOLDEngine
             m_Array.Clear();
         }
 
-        internal int Add(Symbol Item)
+        internal void Add(Symbol Item)
         {
-            return m_Array.Add(Item);
+            m_Array.Add(Item);
         }
 
         internal Symbol GetFirstOfType(SymbolType Type)
@@ -217,7 +219,7 @@ namespace GOLDEngine
             n = 0;
             while ((!Found) & n < m_Array.Count)
             {
-                Sym = m_Array.Item(n);
+                Sym = m_Array[n];
                 if (Sym.Type == Type)
                 {
                     Found = true;
@@ -243,7 +245,7 @@ namespace GOLDEngine
 
             for (n = 0; n <= m_Array.Count - 1; n++)
             {
-                Sym = m_Array(n);
+                Sym = m_Array[n];
                 Result += (n == 0 ? "" : Separator) + Sym.Text(AlwaysDelimitTerminals);
             }
 
@@ -255,13 +257,5 @@ namespace GOLDEngine
         {
             return this.Text(", ", false);
         }
-
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

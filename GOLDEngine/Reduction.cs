@@ -1,5 +1,3 @@
-// ERROR: Not supported in C#: OptionDeclaration
-
 namespace GOLDEngine
 {
     using System.ComponentModel;
@@ -60,19 +58,5 @@ namespace GOLDEngine
             get { return m_Tag; }
             set { m_Tag = value; }
         }
-
-        [Description("Returns/sets the parse data stored in the token. It is a shortcut to Item(Index).Token.")]
-        public object Data
-        {
-            get { return base.Item(Index).Data; }
-            set { base.Item(Index).Data = value; }
-        }
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

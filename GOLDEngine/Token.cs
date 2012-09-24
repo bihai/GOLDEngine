@@ -1,5 +1,7 @@
-// ERROR: Not supported in C#: OptionDeclaration
+using System.Collections.Generic;
 using System.ComponentModel;
+
+using GOLDEngine.Tables;
 
 namespace GOLDEngine
 {
@@ -55,6 +57,20 @@ namespace GOLDEngine
             set { m_Data = value; }
         }
 
+        internal int DataStringLength
+        {
+            get { return ((string)m_Data).Length; }
+        }
+
+        internal void DataStringAppend(Token rhs)
+        {
+            m_Data = (string)m_Data + (string)rhs.m_Data;
+        }
+        internal void DataStringAppendFirstChar(Token rhs)
+        {
+            m_Data = (string)m_Data + ((string)rhs.m_Data)[0];
+        }
+
         internal short State
         {
             get { return m_State; }
@@ -83,24 +99,24 @@ namespace GOLDEngine
     public class TokenList
     {
         //Don't inherit - hide array modifying methods
-        private ArrayList m_Array;
+        private List<Token> m_Array;
 
         internal TokenList()
         {
-            m_Array = new ArrayList();
+            m_Array = new List<Token>();
         }
 
         [Description("Returns the token with the specified index.")]
-        public new Token this[int Index]
+        public Token this[int Index]
         {
-            get { return m_Array(Index); }
+            get { return m_Array[Index]; }
 
-            internal set { m_Array(Index) = value; }
+            internal set { m_Array[Index] = value; }
         }
 
-        internal int Add(Token Item)
+        internal void Add(Token Item)
         {
-            return m_Array.Add(Item);
+            m_Array.Add(Item);
         }
 
         [Description("Returns the total number of tokens in the list.")]
@@ -140,10 +156,10 @@ namespace GOLDEngine
         //================================================================================
 
 
-        private Stack m_Stack;
+        private Stack<Token> m_Stack;
         public TokenStack()
         {
-            m_Stack = new Stack();
+            m_Stack = new Stack<Token>();
         }
 
         internal int Count
@@ -153,10 +169,10 @@ namespace GOLDEngine
 
         public void Clear()
         {
-            m_stack.Clear();
+            m_Stack.Clear();
         }
 
-        public void Push(ref Token TheToken)
+        public void Push(Token TheToken)
         {
             m_Stack.Push(TheToken);
         }
@@ -174,11 +190,11 @@ namespace GOLDEngine
 
     internal class TokenQueueStack
     {
+        private List<Token> m_Items;
 
-        private ArrayList m_Items;
         public TokenQueueStack()
         {
-            m_Items = new ArrayList();
+            m_Items = new List<Token>();
         }
 
         internal int Count
@@ -191,7 +207,7 @@ namespace GOLDEngine
             m_Items.Clear();
         }
 
-        public void Enqueue(ref Token TheToken)
+        public void Enqueue(Token TheToken)
         {
             m_Items.Add(TheToken);
             //End of list
@@ -200,7 +216,7 @@ namespace GOLDEngine
         public Token Dequeue()
         {
             Token Result = default(Token);
-            Result = m_Items(0);
+            Result = m_Items[0];
             //Front of list
             m_Items.RemoveAt(0);
 
@@ -211,7 +227,7 @@ namespace GOLDEngine
         {
             if (m_Items.Count >= 1)
             {
-                return m_Items(0);
+                return m_Items[0];
             }
             else
             {
@@ -223,17 +239,11 @@ namespace GOLDEngine
         {
             m_Items.Insert(0, TheToken);
         }
+
         public Token Pop()
         {
             return Dequeue();
             //Same as dequeue
         }
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

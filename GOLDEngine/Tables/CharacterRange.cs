@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace GOLDEngine.Tables
@@ -14,22 +16,9 @@ namespace GOLDEngine.Tables
         }
     }
 
-    internal class CharacterSet : ArrayList
+    internal class CharacterSet : List<CharacterRange>
     {
-
-        public new CharacterRange this[int Index]
-        {
-            get { return base.Item(Index); }
-
-            set { base.Item(Index) = value; }
-        }
-
-        public new int Add(ref CharacterRange Item)
-        {
-            return base.Add(Item);
-        }
-
-        public new bool Contains(int CharCode)
+        public bool Contains(int CharCode)
         {
             //This procedure searchs the set to deterimine if the CharCode is in one
             //of the ranges - and, therefore, the set.
@@ -44,7 +33,7 @@ namespace GOLDEngine.Tables
 
             while ((n < base.Count) & (!Found))
             {
-                Range = base.Item(n);
+                Range = base[n];
 
                 Found = (CharCode >= Range.Start & CharCode <= Range.End);
                 n += 1;
@@ -55,9 +44,8 @@ namespace GOLDEngine.Tables
 
     }
 
-    internal class CharacterSetList : ArrayList
+    internal class CharacterSetList : List<CharacterSet>
     {
-
         public CharacterSetList()
             : base()
         {
@@ -80,24 +68,5 @@ namespace GOLDEngine.Tables
                 base.Add(null);
             }
         }
-
-        public new CharacterSet this[int Index]
-        {
-            get { return base.Item(Index); }
-
-            set { base.Item(Index) = value; }
-        }
-
-        public new int Add(ref CharacterSet Item)
-        {
-            return base.Add(Item);
-        }
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

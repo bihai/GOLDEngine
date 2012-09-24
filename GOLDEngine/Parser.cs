@@ -1,15 +1,17 @@
-// ERROR: Not supported in C#: OptionDeclaration
-using System.ComponentModel;
-using System.IO;
 using System;
+using System.ComponentModel;
+using Microsoft.VisualBasic;
+
+using System.IO;
+
+using GOLDEngine.Tables;
 
 namespace GOLDEngine
 {
     public class ParserException : System.Exception
     {
-
-
         public string Method;
+
         internal ParserException(string Message)
             : base(Message)
         {
@@ -47,7 +49,6 @@ namespace GOLDEngine
 
     public class GrammarProperties
     {
-
         private const int PropertyCount = 8;
         private enum PropertyIndex
         {
@@ -69,7 +70,7 @@ namespace GOLDEngine
 
             for (n = 0; n <= PropertyCount - 1; n++)
             {
-                m_Property(n) = "";
+                m_Property[n] = "";
             }
         }
 
@@ -77,48 +78,48 @@ namespace GOLDEngine
         {
             if (Index >= 0 & Index < PropertyCount)
             {
-                m_Property(Index) = Value;
+                m_Property[(int)Index] = Value;
             }
         }
 
         public string Name
         {
-            get { return m_Property(PropertyIndex.Name); }
+            get { return m_Property[(int)PropertyIndex.Name]; }
         }
 
         public string Version
         {
-            get { return m_Property(PropertyIndex.Version); }
+            get { return m_Property[(int)PropertyIndex.Version]; }
         }
 
         public string Author
         {
-            get { return m_Property(PropertyIndex.Author); }
+            get { return m_Property[(int)PropertyIndex.Author]; }
         }
 
         public string About
         {
-            get { return m_Property(PropertyIndex.About); }
+            get { return m_Property[(int)PropertyIndex.About]; }
         }
 
         public string CharacterSet
         {
-            get { return m_Property(PropertyIndex.CharacterSet); }
+            get { return m_Property[(int)PropertyIndex.CharacterSet]; }
         }
 
         public string CharacterMapping
         {
-            get { return m_Property(PropertyIndex.CharacterMapping); }
+            get { return m_Property[(int)PropertyIndex.CharacterMapping]; }
         }
 
         public string GeneratedBy
         {
-            get { return m_Property(PropertyIndex.GeneratedBy); }
+            get { return m_Property[(int)PropertyIndex.GeneratedBy]; }
         }
 
         public string GeneratedDate
         {
-            get { return m_Property(PropertyIndex.GeneratedDate); }
+            get { return m_Property[(int)PropertyIndex.GeneratedDate]; }
         }
     }
 
@@ -166,7 +167,7 @@ namespace GOLDEngine
         private ProductionList m_ProductionTable = new ProductionList();
         //===== LALR
         private LRStateList m_LRStates = new LRStateList();
-        private int m_CurrentLALR;
+        private short m_CurrentLALR;
 
         private TokenStack m_Stack = new TokenStack();
         //===== Used for Reductions & Errors
@@ -246,18 +247,18 @@ namespace GOLDEngine
             {
                 if (m_HaveReduction)
                 {
-                    CurrentReduction = m_Stack.Top.Data;
+                    return m_Stack.Top().Data;
                 }
                 else
                 {
-                    CurrentReduction = null;
+                    return null;
                 }
             }
             set
             {
                 if (m_HaveReduction)
                 {
-                    m_Stack.Top.Data = value;
+                    m_Stack.Top().Data = value;
                 }
             }
         }
@@ -284,13 +285,13 @@ namespace GOLDEngine
         [Description("If the Parse() function returns TokenRead, this method will return that last read token.")]
         public Token CurrentToken()
         {
-            return m_InputTokens.Top;
+            return m_InputTokens.Top();
         }
 
         [Description("Removes the next token from the input queue.")]
         public Token DiscardCurrentToken()
         {
-            return m_InputTokens.Dequeue;
+            return m_InputTokens.Dequeue();
         }
 
         [Description("Added a token onto the end of the input queue.")]
@@ -315,7 +316,7 @@ namespace GOLDEngine
 
             if (Count > m_LookaheadBuffer.Length)
             {
-                Count = m_LookaheadBuffer;
+                Count = m_LookaheadBuffer.Length;
             }
 
             return m_LookaheadBuffer.Substring(0, Count);
@@ -345,7 +346,7 @@ namespace GOLDEngine
             //code will understand.
             if (CharIndex <= m_LookaheadBuffer.Length)
             {
-                return m_LookaheadBuffer.Chars(CharIndex - 1);
+                return new string(m_LookaheadBuffer[CharIndex - 1], 1);
             }
             else
             {
@@ -397,15 +398,16 @@ namespace GOLDEngine
 
                 Restart();
                 Success = true;
-                while (!(EGT.EndOfFile | Success == false))
+                while (!(EGT.EndOfFile() | Success == false))
                 {
                     EGT.GetNextRecord();
 
-                    RecType = EGT.RetrieveByte;
+                    RecType = (EGTRecord)EGT.RetrieveByte();
 
                     switch (RecType)
                     {
                         case EGTRecord.Property:
+                            {
                             //Index, Name, Value
                             int Index = 0;
                             string Name = null;
@@ -413,17 +415,17 @@ namespace GOLDEngine
                             Index = EGT.RetrieveInt16();
                             Name = EGT.RetrieveString();
                             //Just discard
-                            m_Grammar.SetValue(Index, EGT.RetrieveString);
-
+                            m_Grammar.SetValue(Index, EGT.RetrieveString());
+                            }
                             break;
                         case EGTRecord.TableCounts:
                             //Symbol, CharacterSet, Rule, DFA, LALR
-                            m_SymbolTable = new SymbolList(EGT.RetrieveInt16);
-                            m_CharSetTable = new CharacterSetList(EGT.RetrieveInt16);
-                            m_ProductionTable = new ProductionList(EGT.RetrieveInt16);
-                            m_DFA = new FAStateList(EGT.RetrieveInt16);
-                            m_LRStates = new LRStateList(EGT.RetrieveInt16);
-                            m_GroupTable = new GroupList(EGT.RetrieveInt16);
+                            m_SymbolTable = new SymbolList(EGT.RetrieveInt16());
+                            m_CharSetTable = new CharacterSetList(EGT.RetrieveInt16());
+                            m_ProductionTable = new ProductionList(EGT.RetrieveInt16());
+                            m_DFA = new FAStateList(EGT.RetrieveInt16());
+                            m_LRStates = new LRStateList(EGT.RetrieveInt16());
+                            m_GroupTable = new GroupList(EGT.RetrieveInt16());
 
                             break;
                         case EGTRecord.InitialStates:
@@ -433,20 +435,22 @@ namespace GOLDEngine
 
                             break;
                         case EGTRecord.Symbol:
+                            {
                             //#, Name, Kind
-                            int Index = 0;
+                            short Index = 0;
                             string Name = null;
                             SymbolType Type = default(SymbolType);
 
                             Index = EGT.RetrieveInt16();
                             Name = EGT.RetrieveString();
-                            Type = EGT.RetrieveInt16();
+                            Type = (SymbolType)EGT.RetrieveInt16();
 
-                            m_SymbolTable(Index) = new Symbol(Name, Type, Index);
-
+                            m_SymbolTable[Index] = new Symbol(Name, Type, Index);
+                            }
                             break;
                         case EGTRecord.Group:
                             //#, Name, Container#, Start#, End#, Tokenized, Open Ended, Reserved, Count, (Nested Group #...) 
+                            {
                             Group G = new Group();
                             int Index = 0;
                             int Count = 0;
@@ -455,13 +459,13 @@ namespace GOLDEngine
                                 Index = EGT.RetrieveInt16();
                                 //# 
 
-                                G.Name = EGT.RetrieveString;
-                                G.Container = SymbolTable(EGT.RetrieveInt16());
-                                G.Start = SymbolTable(EGT.RetrieveInt16());
-                                G.End = SymbolTable(EGT.RetrieveInt16());
+                                G.Name = EGT.RetrieveString();
+                                G.Container = SymbolTable()[EGT.RetrieveInt16()];
+                                G.Start = SymbolTable()[EGT.RetrieveInt16()];
+                                G.End = SymbolTable()[EGT.RetrieveInt16()];
 
-                                G.Advance = EGT.RetrieveInt16();
-                                G.Ending = EGT.RetrieveInt16();
+                                G.Advance = (Group.AdvanceMode)EGT.RetrieveInt16();
+                                G.Ending = (Group.EndingMode)EGT.RetrieveInt16();
                                 EGT.RetrieveEntry();
                                 //Reserved
 
@@ -478,126 +482,128 @@ namespace GOLDEngine
                             G.Start.Group = G;
                             G.End.Group = G;
 
-                            m_GroupTable(Index) = G;
-
+                            m_GroupTable[Index] = G;
+                            }
                             break;
                         case EGTRecord.CharRanges:
                             //#, Total Sets, RESERVED, (Start#, End#  ...)
+                            {
                             int Index = 0;
                             int Total = 0;
 
-                            Index = EGT.RetrieveInt16;
+                            Index = EGT.RetrieveInt16();
                             EGT.RetrieveInt16();
                             //Codepage
-                            Total = EGT.RetrieveInt16;
+                            Total = EGT.RetrieveInt16();
                             EGT.RetrieveEntry();
                             //Reserved
 
-                            m_CharSetTable(Index) = new CharacterSet();
-                            while (!(EGT.RecordComplete))
+                            m_CharSetTable[Index] = new CharacterSet();
+                            while (!(EGT.RecordComplete()))
                             {
-                                m_CharSetTable(Index).Add(new CharacterRange(EGT.RetrieveInt16, EGT.RetrieveInt16));
+                                m_CharSetTable[Index].Add(new CharacterRange(EGT.RetrieveUInt16(), EGT.RetrieveUInt16()));
                             }
-
+                            }
                             break;
                         case EGTRecord.Production:
                             //#, ID#, Reserved, (Symbol#,  ...)
-                            int Index = 0;
+                            {
+                            short Index = 0;
                             int HeadIndex = 0;
                             int SymIndex = 0;
 
-                            Index = EGT.RetrieveInt16;
-                            HeadIndex = EGT.RetrieveInt16;
+                            Index = EGT.RetrieveInt16();
+                            HeadIndex = EGT.RetrieveInt16();
                             EGT.RetrieveEntry();
                             //Reserved
 
-                            m_ProductionTable(Index) = new Production(m_SymbolTable(HeadIndex), Index);
+                            m_ProductionTable[Index] = new Production(m_SymbolTable[HeadIndex], Index);
 
-                            while (!(EGT.RecordComplete))
+                            while (!(EGT.RecordComplete()))
                             {
-                                SymIndex = EGT.RetrieveInt16;
-                                m_ProductionTable(Index).Handle.Add(m_SymbolTable(SymIndex));
+                                SymIndex = EGT.RetrieveInt16();
+                                m_ProductionTable[Index].Handle().Add(m_SymbolTable[SymIndex]);
                             }
-
+                            }
                             break;
                         case EGTRecord.DFAState:
                             //#, Accept?, Accept#, Reserved (CharSet#, Target#, Reserved)...
+                            {
                             int Index = 0;
                             bool Accept = false;
                             int AcceptIndex = 0;
                             int SetIndex = 0;
                             int Target = 0;
 
-                            Index = EGT.RetrieveInt16;
-                            Accept = EGT.RetrieveBoolean;
-                            AcceptIndex = EGT.RetrieveInt16;
+                            Index = EGT.RetrieveInt16();
+                            Accept = EGT.RetrieveBoolean();
+                            AcceptIndex = EGT.RetrieveInt16();
                             EGT.RetrieveEntry();
                             //Reserved
 
                             if (Accept)
                             {
-                                m_DFA(Index) = new FAState(m_SymbolTable(AcceptIndex));
+                                m_DFA[Index] = new FAState(m_SymbolTable[AcceptIndex]);
                             }
                             else
                             {
-                                m_DFA(Index) = new FAState();
+                                m_DFA[Index] = new FAState();
                             }
 
                             //(Edge chars, Target#, Reserved)...
-                            while (!(EGT.RecordComplete))
+                            while (!(EGT.RecordComplete()))
                             {
-                                SetIndex = EGT.RetrieveInt16;
+                                SetIndex = EGT.RetrieveInt16();
                                 //Char table index
-                                Target = EGT.RetrieveInt16;
+                                Target = EGT.RetrieveInt16();
                                 //Target
                                 EGT.RetrieveEntry();
                                 //Reserved
 
-                                m_DFA(Index).Edges.Add(new FAEdge(m_CharSetTable(SetIndex), Target));
+                                m_DFA[Index].Edges.Add(new FAEdge(m_CharSetTable[SetIndex], Target));
                             }
-
+                            }
                             break;
                         case EGTRecord.LRState:
                             //#, Reserved (Symbol#, Action, Target#, Reserved)...
+                            {
                             int Index = 0;
                             int SymIndex = 0;
-                            int Action = 0;
-                            int Target = 0;
+                            LRActionType Action = 0;
+                            short Target = 0;
 
-                            Index = EGT.RetrieveInt16;
+                            Index = EGT.RetrieveInt16();
                             EGT.RetrieveEntry();
                             //Reserved
 
-                            m_LRStates(Index) = new LRState();
+                            m_LRStates[Index] = new LRState();
 
                             //(Symbol#, Action, Target#, Reserved)...
-                            while (!(EGT.RecordComplete))
+                            while (!EGT.RecordComplete())
                             {
-                                SymIndex = EGT.RetrieveInt16;
-                                Action = EGT.RetrieveInt16;
-                                Target = EGT.RetrieveInt16;
+                                SymIndex = EGT.RetrieveInt16();
+                                Action = (LRActionType)EGT.RetrieveInt16();
+                                Target = EGT.RetrieveInt16();
                                 EGT.RetrieveEntry();
                                 //Reserved
 
-                                m_LRStates(Index).Add(new LRAction(m_SymbolTable(SymIndex), Action, Target));
+                                m_LRStates[Index].Add(new LRAction(m_SymbolTable[SymIndex], Action, Target));
                             }
-
+                            }
                             break;
                         default:
                             //RecordIDComment
                             Success = false;
-                            throw new ParserException("File Error. A record of type '" + Strings.ChrW(RecType) + "' was read. This is not a valid code.");
+                            throw new ParserException("File Error. A record of type '" + Strings.ChrW((int)RecType) + "' was read. This is not a valid code.");
                     }
                 }
-
-                EGT.Close();
-
             }
             catch (Exception ex)
             {
                 throw new ParserException(ex.Message, ex, "LoadTables");
             }
 
+            Reader.Close();
             m_TablesLoaded = Success;
 
             return Success;
@@ -621,7 +627,7 @@ namespace GOLDEngine
             return m_ExpectedSymbols;
         }
 
-        private ParseResult ParseLALR(ref Token NextToken)
+        private ParseResult ParseLALR(Token NextToken)
         {
             //This function analyzes a token and either:
             //  1. Makes a SINGLE reduction and pushes a complete Reduction object on the m_Stack
@@ -632,14 +638,14 @@ namespace GOLDEngine
             //The Message parameter is then set to the type of action.
 
             short Index = 0;
-            short n = 0;
+            int n = 0;
             LRAction ParseAction = default(LRAction);
             Production Prod = default(Production);
             Token Head = default(Token);
             Reduction NewReduction = default(Reduction);
             ParseResult Result = default(ParseResult);
 
-            ParseAction = m_LRStates(m_CurrentLALR).Item(NextToken.Parent);
+            ParseAction = m_LRStates[m_CurrentLALR][NextToken.Parent];
 
             // Work - shift or reduce
             if ((ParseAction != null))
@@ -664,10 +670,10 @@ namespace GOLDEngine
                         break;
                     case LRActionType.Reduce:
                         //Produce a reduction - remove as many tokens as members in the rule & push a nonterminal token
-                        Prod = m_ProductionTable(ParseAction.Value);
+                        Prod = m_ProductionTable[ParseAction.Value];
 
                         //======== Create Reduction
-                        if (m_TrimReductions & Prod.ContainsOneNonTerminal)
+                        if (m_TrimReductions & Prod.ContainsOneNonTerminal())
                         {
                             //The current rule only consists of a single nonterminal and can be trimmed from the
                             //parse tree. Usually we create a new Reduction, assign it to the Data property
@@ -677,7 +683,7 @@ namespace GOLDEngine
                             //In this case, to save code, the value popped of the m_Stack is changed into the head.
 
                             Head = m_Stack.Pop();
-                            Head.Parent = Prod.Head;
+                            Head.Parent = Prod.Head();
 
                             Result = ParseResult.ReduceEliminated;
                             //Build a Reduction
@@ -685,17 +691,17 @@ namespace GOLDEngine
                         else
                         {
                             m_HaveReduction = true;
-                            NewReduction = new Reduction(Prod.Handle.Count);
+                            NewReduction = new Reduction(Prod.Handle().Count());
 
                             {
                                 NewReduction.Parent = Prod;
-                                for (n = Prod.Handle.Count - 1; n >= 0; n += -1)
+                                for (n = Prod.Handle().Count() - 1; n >= 0; n += -1)
                                 {
-                                    NewReduction.Item(n) = m_Stack.Pop();
+                                    NewReduction[n] = m_Stack.Pop();
                                 }
                             }
 
-                            Head = new Token(Prod.Head, NewReduction);
+                            Head = new Token(Prod.Head(), NewReduction);
                             Result = ParseResult.ReduceNormal;
                         }
 
@@ -703,10 +709,10 @@ namespace GOLDEngine
                         Index = m_Stack.Top().State;
 
                         //========= If n is -1 here, then we have an Internal Table Error!!!!
-                        n = m_LRStates(Index).IndexOf(Prod.Head);
+                        n = m_LRStates[Index].IndexOf(Prod.Head());
                         if (n != -1)
                         {
-                            m_CurrentLALR = m_LRStates(Index).Item(n).Value;
+                            m_CurrentLALR = m_LRStates[Index][n].Value;
 
                             Head.State = m_CurrentLALR;
                             m_Stack.Push(Head);
@@ -724,7 +730,7 @@ namespace GOLDEngine
                 //=== Syntax Error! Fill Expected Tokens
                 m_ExpectedSymbols.Clear();
                 //.Count - 1
-                foreach (LRAction Action in m_LRStates(m_CurrentLALR))
+                foreach (LRAction Action in m_LRStates[m_CurrentLALR])
                 {
                     switch (Action.Symbol.Type)
                     {
@@ -821,9 +827,9 @@ namespace GOLDEngine
                     {
                         n = 0;
                         Found = false;
-                        while (n < m_DFA(CurrentDFA).Edges.Count & !Found)
+                        while (n < m_DFA[CurrentDFA].Edges.Count & !Found)
                         {
-                            Edge = m_DFA(CurrentDFA).Edges(n);
+                            Edge = m_DFA[CurrentDFA].Edges[n];
 
                             //==== Look for character in the Character Set Table
                             if (Edge.Characters.Contains(Strings.AscW(Ch)))
@@ -849,7 +855,7 @@ namespace GOLDEngine
                         // number of characters.
 
                         //NOT is very important!
-                        if ((m_DFA(Target).Accept != null))
+                        if ((m_DFA[Target].Accept != null))
                         {
                             LastAcceptState = Target;
                             LastAcceptPosition = CurrentPosition;
@@ -872,7 +878,7 @@ namespace GOLDEngine
                         }
                         else
                         {
-                            Result.Parent = m_DFA(LastAcceptState).Accept;
+                            Result.Parent = m_DFA[LastAcceptState].Accept;
                             Result.Data = LookaheadBuffer(LastAcceptPosition);
                             //Data contains the total number of accept characters
                         }
@@ -893,7 +899,7 @@ namespace GOLDEngine
             //===================================================
             //Notice, this is a copy, not a linking of an instance. We don't want the user 
             //to be able to alter the main value indirectly.
-            Result.Position.Copy(m_SysPosition);
+            Result.Position().Copy(m_SysPosition);
 
             return Result;
         }
@@ -911,13 +917,13 @@ namespace GOLDEngine
                 // DFA algorithm.
                 for (n = 0; n <= CharCount - 1; n++)
                 {
-                    switch (m_LookaheadBuffer(n))
+                    switch (m_LookaheadBuffer[n])
                     {
-                        case Constants.vbLf:
+                        case '\n':
                             m_SysPosition.Line += 1;
                             m_SysPosition.Column = 0;
                             break;
-                        case Constants.vbCr:
+                        case '\r':
                             break;
                         //Ignore, LF is used to inc line to be UNIX friendly
                         default:
@@ -958,7 +964,7 @@ namespace GOLDEngine
                 //The logic - to determine if a group should be nested - requires that the top of the stack 
                 //and the symbol's linked group need to be looked at. Both of these can be unset. So, this section
                 //sets a Boolean and avoids errors. We will use this boolean in the logic chain below. 
-                if (Read.Type == SymbolType.GroupStart)
+                if (Read.Type() == SymbolType.GroupStart)
                 {
                     if (m_GroupStack.Count == 0)
                     {
@@ -966,7 +972,7 @@ namespace GOLDEngine
                     }
                     else
                     {
-                        NestGroup = m_GroupStack.Top.Group.Nesting.Contains(Read.Group.TableIndex);
+                        NestGroup = m_GroupStack.Top().Group().Nesting.Contains(Read.Group().TableIndex);
                     }
                 }
                 else
@@ -980,48 +986,48 @@ namespace GOLDEngine
 
                 if (NestGroup)
                 {
-                    ConsumeBuffer(Read.Data.Length);
+                    ConsumeBuffer(Read.DataStringLength);
                     m_GroupStack.Push(Read);
 
                 }
                 else if (m_GroupStack.Count == 0)
                 {
                     //The token is ready to be analyzed.             
-                    ConsumeBuffer(Read.Data.Length);
+                    ConsumeBuffer(Read.DataStringLength);
                     Result = Read;
                     Done = true;
 
                 }
-                else if ((object.ReferenceEquals(m_GroupStack.Top.Group.End, Read.Parent)))
+                else if ((object.ReferenceEquals(m_GroupStack.Top().Group().End, Read.Parent)))
                 {
                     //End the current group
                     Pop = m_GroupStack.Pop();
 
                     //=== Ending logic
-                    if (Pop.Group.Ending == Group.EndingMode.Closed)
+                    if (Pop.Group().Ending == Group.EndingMode.Closed)
                     {
-                        Pop.Data += Read.Data;
+                        Pop.DataStringAppend(Read);
                         //Append text
-                        ConsumeBuffer(Read.Data.Length);
+                        ConsumeBuffer(Read.DataStringLength);
                         //Consume token
                     }
 
                     //We are out of the group. Return pop'd token (which contains all the group text)
                     if (m_GroupStack.Count == 0)
                     {
-                        Pop.Parent = Pop.Group.Container;
+                        Pop.Parent = Pop.Group().Container;
                         //Change symbol to parent
                         Result = Pop;
                         Done = true;
                     }
                     else
                     {
-                        m_GroupStack.Top.Data += Pop.Data;
+                        m_GroupStack.Top().DataStringAppend(Pop);
                         //Append group text to parent
                     }
 
                 }
-                else if (Read.Type == SymbolType.End)
+                else if (Read.Type() == SymbolType.End)
                 {
                     //EOF always stops the loop. The caller function (Parse) can flag a runaway group error.
                     Result = Read;
@@ -1032,17 +1038,17 @@ namespace GOLDEngine
                 {
                     //We are in a group, Append to the Token on the top of the stack.
                     //Take into account the Token group mode  
-                    Top = m_GroupStack.Top;
+                    Top = m_GroupStack.Top();
 
-                    if (Top.Group.Advance == Group.AdvanceMode.Token)
+                    if (Top.Group().Advance == Group.AdvanceMode.Token)
                     {
-                        Top.Data += Read.Data;
+                        Top.DataStringAppend(Read);
                         // Append all text
-                        ConsumeBuffer(Read.Data.Length);
+                        ConsumeBuffer(Read.DataStringLength);
                     }
                     else
                     {
-                        Top.Data += Read.Data.Chars(0);
+                        Top.DataStringAppendFirstChar(Read);
                         // Append one character
                         ConsumeBuffer(1);
                     }
@@ -1082,7 +1088,7 @@ namespace GOLDEngine
                 else
                 {
                     Read = m_InputTokens.Top();
-                    m_CurrentPosition.Copy(Read.Position);
+                    m_CurrentPosition.Copy(Read.Position());
                     //Update current position
 
                     //Runaway group
@@ -1091,13 +1097,13 @@ namespace GOLDEngine
                         Message = ParseMessage.GroupError;
                         Done = true;
                     }
-                    else if (Read.Type == SymbolType.Noise)
+                    else if (Read.Type() == SymbolType.Noise)
                     {
                         //Just discard. These were already reported to the user.
                         m_InputTokens.Pop();
 
                     }
-                    else if (Read.Type == SymbolType.Error)
+                    else if (Read.Type() == SymbolType.Error)
                     {
                         Message = ParseMessage.LexicalError;
                         Done = true;
@@ -1147,14 +1153,5 @@ namespace GOLDEngine
 
             return Message;
         }
-
-
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

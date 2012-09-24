@@ -1,6 +1,5 @@
 namespace GOLDEngine
 {
-
     public class Position
     {
         public int Line;
@@ -18,11 +17,4 @@ namespace GOLDEngine
             this.Line = Pos.Line;
         }
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

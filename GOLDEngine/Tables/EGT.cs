@@ -1,7 +1,7 @@
-// ERROR: Not supported in C#: OptionDeclaration
-// ERROR: Not supported in C#: OptionDeclaration
+using System;
 using System.IO;
 using System.Text;
+using Microsoft.VisualBasic;
 
 namespace GOLDEngine.Tables
 {
@@ -47,14 +47,13 @@ namespace GOLDEngine.Tables
 
         public class IOException : System.Exception
         {
-
             public IOException(string Message, System.Exception Inner)
                 : base(Message, Inner)
             {
             }
 
             public IOException(EntryType Type, BinaryReader Reader)
-                : base("Type mismatch in file. Read '" + Strings.ChrW(Type) + "' at " + Reader.BaseStream.Position)
+                : base("Type mismatch in file. Read '" + Strings.ChrW((int)Type) + "' at " + Reader.BaseStream.Position)
             {
             }
         }
@@ -83,24 +82,15 @@ namespace GOLDEngine.Tables
 
         private BinaryReader m_Reader;
         //Current record 
-        private int m_EntryCount;
+        private ushort m_EntryCount;
 
-        private int m_EntriesRead;
+        private ushort m_EntriesRead;
         public bool RecordComplete()
         {
             return m_EntriesRead >= m_EntryCount;
         }
 
-        public void Close()
-        {
-            if ((m_Reader != null))
-            {
-                m_Reader.Close();
-                m_Reader = null;
-            }
-        }
-
-        public short EntryCount()
+        public ushort EntryCount()
         {
             return m_EntryCount;
         }
@@ -144,9 +134,9 @@ namespace GOLDEngine.Tables
                 m_EntriesRead += 1;
                 Type = m_Reader.ReadByte();
                 //Entry Type Prefix
-                Result.Type = Type;
+                Result.Type = (EntryType)Type;
 
-                switch (Type)
+                switch (Result.Type)
                 {
                     case EntryType.Empty:
                         Result.Value = "";
@@ -155,7 +145,7 @@ namespace GOLDEngine.Tables
                     case EntryType.Boolean:
                         byte b = 0;
 
-                        b = m_Reader.ReadByte;
+                        b = m_Reader.ReadByte();
                         Result.Value = (b == 1);
 
                         break;
@@ -168,7 +158,7 @@ namespace GOLDEngine.Tables
 
                         break;
                     case EntryType.Byte:
-                        Result.Value = m_Reader.ReadByte;
+                        Result.Value = m_Reader.ReadByte();
 
                         break;
                     default:
@@ -195,7 +185,7 @@ namespace GOLDEngine.Tables
             //Least significant byte first
             b1 = m_Reader.ReadByte();
 
-            Result = (b1 << 8) + b0;
+            Result = (ushort)((b1 << 8) + b0);
 
             return Result;
         }
@@ -203,7 +193,7 @@ namespace GOLDEngine.Tables
         private string RawReadCString()
         {
             UInt16 Char16 = default(UInt16);
-            string Text = "";
+            StringBuilder Text = new StringBuilder();
             bool Done = false;
 
             while (!(Done))
@@ -215,11 +205,11 @@ namespace GOLDEngine.Tables
                 }
                 else
                 {
-                    Text += Strings.ChrW(Char16);
+                    Text.Append(Strings.ChrW(Char16));
                 }
             }
 
-            return Text;
+            return Text.ToString();
         }
 
 
@@ -230,7 +220,7 @@ namespace GOLDEngine.Tables
             e = RetrieveEntry();
             if (e.Type == EntryType.String)
             {
-                return e.Value;
+                return (string)e.Value;
             }
             else
             {
@@ -238,14 +228,29 @@ namespace GOLDEngine.Tables
             }
         }
 
-        public int RetrieveInt16()
+        public short RetrieveInt16()
         {
             Entry e = default(Entry);
 
             e = RetrieveEntry();
             if (e.Type == EntryType.UInt16)
             {
-                return e.Value;
+                return (short)(ushort)e.Value;
+            }
+            else
+            {
+                throw new IOException(e.Type, m_Reader);
+            }
+        }
+
+        public ushort RetrieveUInt16()
+        {
+            Entry e = default(Entry);
+
+            e = RetrieveEntry();
+            if (e.Type == EntryType.UInt16)
+            {
+                return (ushort)e.Value;
             }
             else
             {
@@ -260,7 +265,7 @@ namespace GOLDEngine.Tables
             e = RetrieveEntry();
             if (e.Type == EntryType.Boolean)
             {
-                return e.Value;
+                return (bool)e.Value;
             }
             else
             {
@@ -275,7 +280,7 @@ namespace GOLDEngine.Tables
             e = RetrieveEntry();
             if (e.Type == EntryType.Byte)
             {
-                return e.Value;
+                return (byte)e.Value;
             }
             else
             {
@@ -310,18 +315,5 @@ namespace GOLDEngine.Tables
 
             return Success;
         }
-
-        protected override void Finalize()
-        {
-            Close();
-        }
     }
-
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

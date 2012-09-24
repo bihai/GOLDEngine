@@ -1,5 +1,5 @@
-// ERROR: Not supported in C#: OptionDeclaration
 using System.ComponentModel;
+using System.Collections.Generic;
 
 namespace GOLDEngine
 {
@@ -66,7 +66,8 @@ namespace GOLDEngine
         }
 
         [Description("Returns the production in BNF.")]
-        public string Text(bool AlwaysDelimitTerminals = false)
+        public string Text() { return Text(false); }
+        public string Text(bool AlwaysDelimitTerminals)
         {
             return m_Head.Text() + " ::= " + m_Handle.Text(" ", AlwaysDelimitTerminals);
         }
@@ -75,9 +76,9 @@ namespace GOLDEngine
         {
             bool Result = false;
 
-            if (m_Handle.Count == 1)
+            if (m_Handle.Count() == 1)
             {
-                if (m_Handle(0).Type == SymbolType.Nonterminal)
+                if (m_Handle[0].Type == SymbolType.Nonterminal)
                 {
                     Result = true;
                 }
@@ -90,16 +91,16 @@ namespace GOLDEngine
     public class ProductionList
     {
         //Cannot inherit, must hide methods that change the list
-        private ArrayList m_Array;
+        private List<Production> m_Array;
 
         internal ProductionList()
         {
-            m_Array = new ArrayList();
+            m_Array = new List<Production>();
         }
 
         internal ProductionList(int Size)
         {
-            m_Array = new ArrayList();
+            m_Array = new List<Production>();
             ReDimension(Size);
         }
 
@@ -121,11 +122,11 @@ namespace GOLDEngine
         }
 
         [Description("Returns the production with the specified index.")]
-        public new Production this[int Index]
+        public Production this[int Index]
         {
-            get { return m_Array(Index); }
+            get { return m_Array[Index]; }
 
-            internal set { m_Array(Index) = value; }
+            internal set { m_Array[Index] = value; }
         }
 
         [Description("Returns the total number of productions in the list.")]
@@ -134,16 +135,9 @@ namespace GOLDEngine
             return m_Array.Count;
         }
 
-        internal new int Add(Production Item)
+        internal void Add(Production Item)
         {
-            return m_Array.Add(Item);
+            m_Array.Add(Item);
         }
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

@@ -1,4 +1,4 @@
-
+using System.Collections.Generic;
 
 namespace GOLDEngine.Tables
 {
@@ -38,7 +38,7 @@ namespace GOLDEngine.Tables
     }
 
 
-    internal class GroupList : ArrayList
+    internal class GroupList : List<Group>
     {
 
         public GroupList()
@@ -63,45 +63,10 @@ namespace GOLDEngine.Tables
                 base.Add(null);
             }
         }
-
-        public new Group this[int Index]
-        {
-            get { return base.Item(Index); }
-
-            set { base.Item(Index) = value; }
-        }
-
-        public new int Add(Group Item)
-        {
-            return base.Add(Item);
-        }
     }
 
 
-    internal class IntegerList : ArrayList
+    internal class IntegerList : List<int>
     {
-        public new int this[int Index]
-        {
-            get { return base.Item(Index); }
-
-            set { base.Item(Index) = value; }
-        }
-
-        public new int Add(int Value)
-        {
-            return base.Add(Value);
-        }
-
-        public new bool Contains(int Item)
-        {
-            return base.Contains(Item);
-        }
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }

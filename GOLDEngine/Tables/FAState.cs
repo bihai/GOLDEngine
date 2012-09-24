@@ -1,4 +1,4 @@
-// ERROR: Not supported in C#: OptionDeclaration
+using System.Collections.Generic;
 
 namespace GOLDEngine.Tables
 {
@@ -36,10 +36,8 @@ namespace GOLDEngine.Tables
         }
     }
 
-    internal class FAStateList : ArrayList
+    internal class FAStateList : List<FAState>
     {
-
-
         public short InitialState;
         //===== DFA runtime variables
 
@@ -47,7 +45,6 @@ namespace GOLDEngine.Tables
         public FAStateList()
             : base()
         {
-
             InitialState = 0;
             ErrorSymbol = null;
         }
@@ -72,24 +69,5 @@ namespace GOLDEngine.Tables
                 base.Add(null);
             }
         }
-
-        public new FAState this[int Index]
-        {
-            get { return base.Item(Index); }
-
-            set { base.Item(Index) = value; }
-        }
-
-        public new int Add(FAState Item)
-        {
-            return base.Add(Item);
-        }
     }
-
-    //=======================================================
-    //Service provided by Telerik (www.telerik.com)
-    //Conversion powered by NRefactory.
-    //Twitter: @telerik, @toddanglin
-    //Facebook: facebook.com/telerik
-    //=======================================================
 }
