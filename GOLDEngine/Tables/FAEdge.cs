@@ -26,9 +26,9 @@ namespace GOLDEngine.Tables
         //Characters to advance on	
         public CharacterSet Characters;
         //FAState
-        public int Target;
+        public short Target;
 
-        public FAEdge(CharacterSet CharSet, int Target)
+        public FAEdge(CharacterSet CharSet, short Target)
         {
             this.Characters = CharSet;
             this.Target = Target;

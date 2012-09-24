@@ -45,89 +45,21 @@ namespace GOLDEngine.Tables
 
     internal class LRState : List<LRAction>
     {
-
-        public short IndexOf(Symbol Item)
-        {
-            //Returns the index of SymbolIndex in the table, -1 if not found
-            short n = 0;
-            short Index = 0;
-            bool Found = false;
-
-            n = 0;
-            Found = false;
-            while ((!Found) & n < base.Count)
-            {
-                if (Item.Equals(base[n].Symbol))
-                {
-                    Index = n;
-                    Found = true;
-                }
-                n += 1;
-            }
-
-            if (Found)
-            {
-                return Index;
-            }
-            else
-            {
-                return -1;
-            }
-        }
-
-        // This method is an overload of the indexer defined in the base class, i.e. List<LRAction>.this[int index]
-        internal LRAction this[Symbol Sym]
-        {
-            get
-            {
-                int Index = IndexOf(Sym);
-                if (Index != -1)
-                {
-                    return base[Index];
-                }
-                else
-                {
-                    return null;
-                }
-            }
-            set
-            {
-                int Index = IndexOf(Sym);
-                if (Index != -1)
-                {
-                    base[Index] = value;
-                }
-            }
-        }
     }
 
     internal class LRStateList : List<LRState>
     {
         public short InitialState;
 
-        public LRStateList()
-            : base()
-        {
-            InitialState = 0;
-        }
-
         internal LRStateList(int Size)
-            : base()
-        {
-            ReDimension(Size);
-            InitialState = 0;
-        }
-
-        internal void ReDimension(int Size)
+            : base(Size)
         {
             //Increase the size of the array to Size empty elements.
-            int n = 0;
-
-            base.Clear();
-            for (n = 0; n <= Size - 1; n++)
+            for (int i = 0; i < Size; ++i)
             {
                 base.Add(null);
             }
+            InitialState = 0;
         }
     }
 }

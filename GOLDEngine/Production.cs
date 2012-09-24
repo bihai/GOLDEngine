@@ -33,7 +33,7 @@ namespace GOLDEngine
         internal Production(Symbol Head, short TableIndex)
         {
             m_Head = Head;
-            m_Handle = new SymbolList();
+            m_Handle = new SymbolList(0);
             m_TableIndex = TableIndex;
         }
 
@@ -93,29 +93,11 @@ namespace GOLDEngine
         //Cannot inherit, must hide methods that change the list
         private List<Production> m_Array;
 
-        internal ProductionList()
-        {
-            m_Array = new List<Production>();
-        }
-
         internal ProductionList(int Size)
         {
-            m_Array = new List<Production>();
-            ReDimension(Size);
-        }
-
-        internal void Clear()
-        {
-            m_Array.Clear();
-        }
-
-        internal void ReDimension(int Size)
-        {
+            m_Array = new List<Production>(Size);
             //Increase the size of the array to Size empty elements.
-            int n = 0;
-
-            m_Array.Clear();
-            for (n = 0; n <= Size - 1; n++)
+            for (int n = 0; n <= Size - 1; n++)
             {
                 m_Array.Add(null);
             }

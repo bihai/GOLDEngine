@@ -151,24 +151,11 @@ namespace GOLDEngine
         //CANNOT inherit, must hide methods that edit the list
         private List<Symbol> m_Array;
 
-        internal SymbolList()
-        {
-            m_Array = new List<Symbol>();
-        }
-
         internal SymbolList(int Size)
         {
-            m_Array = new List<Symbol>();
-            ReDimension(Size);
-        }
-
-        internal void ReDimension(int Size)
-        {
+            m_Array = new List<Symbol>(Size);
             //Increase the size of the array to Size empty elements.
-            int n = 0;
-
-            m_Array.Clear();
-            for (n = 0; n <= Size - 1; n++)
+            for (int n = 0; n <= Size - 1; n++)
             {
                 m_Array.Add(null);
             }
@@ -210,25 +197,7 @@ namespace GOLDEngine
 
         internal Symbol GetFirstOfType(SymbolType Type)
         {
-            bool Found = false;
-            short n = 0;
-            Symbol Sym = default(Symbol);
-            Symbol Result = null;
-
-            Found = false;
-            n = 0;
-            while ((!Found) & n < m_Array.Count)
-            {
-                Sym = m_Array[n];
-                if (Sym.Type == Type)
-                {
-                    Found = true;
-                    Result = Sym;
-                }
-                n += 1;
-            }
-
-            return Result;
+            return m_Array.Find(symbol => symbol.Type == Type);
         }
 
         public override string ToString()

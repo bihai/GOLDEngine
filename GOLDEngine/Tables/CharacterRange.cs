@@ -46,24 +46,11 @@ namespace GOLDEngine.Tables
 
     internal class CharacterSetList : List<CharacterSet>
     {
-        public CharacterSetList()
-            : base()
-        {
-        }
-
         internal CharacterSetList(int Size)
-            : base()
-        {
-            ReDimension(Size);
-        }
-
-        internal void ReDimension(int Size)
+            : base(Size)
         {
             //Increase the size of the array to Size empty elements.
-            int n = 0;
-
-            base.Clear();
-            for (n = 0; n <= Size - 1; n++)
+            for (int i = 0; i < Size; ++i )
             {
                 base.Add(null);
             }

@@ -136,52 +136,25 @@ namespace GOLDEngine
         //    contains the LALR(1) State Machine code, the DFA State Machine code,
         //    character table (used by the DFA algorithm) and all other structures and
         //    methods needed to interact with the developer.
-        //
-        //Author(s):
-        //   Devin Cook
-        //
-        //Public Dependencies:
-        //   Token, TokenList, Production, ProductionList, Symbol, SymbolList, Reduction, Position
-        //
-        //Private Dependencies:
-        //   CGTReader, TokenStack, TokenStackQueue, FAStateList, CharacterRange, CharacterSet,
-        //   CharacterSetList, LRActionTableList
-        //
-        //Revision History:    
-        //  2011-10-06
-        //      * Added 5.0 logic.
         //===================================================================
 
 
         private const string kVersion = "5.0";
-        //===== Symbols recognized by the system
-
-        private SymbolList m_SymbolTable = new SymbolList();
-        //===== DFA
-        private FAStateList m_DFA = new FAStateList();
-        private CharacterSetList m_CharSetTable = new CharacterSetList();
 
         private string m_LookaheadBuffer;
-        //===== Productions
-
-        private ProductionList m_ProductionTable = new ProductionList();
-        //===== LALR
-        private LRStateList m_LRStates = new LRStateList();
         private short m_CurrentLALR;
 
         private TokenStack m_Stack = new TokenStack();
         //===== Used for Reductions & Errors
         //This ENTIRE list will available to the user
-        private SymbolList m_ExpectedSymbols = new SymbolList();
+        private SymbolList m_ExpectedSymbols = null;
         private bool m_HaveReduction;
         //NEW 12/2001
-        private bool m_TrimReductions;
+        private bool m_TrimReductions = false;
 
         //===== Private control variables
-        private bool m_TablesLoaded;
         //Tokens to be analyzed - Hybred object!
         private TokenQueueStack m_InputTokens = new TokenQueueStack();
-
 
         private TextReader m_Source;
         //=== Line and column information. 
@@ -190,6 +163,7 @@ namespace GOLDEngine
         //Last read terminal
         private Position m_CurrentPosition = new Position();
 
+        private EGT m_loaded;
 
         //===== The ParseLALR() function returns this value
         private enum ParseResult
@@ -203,20 +177,12 @@ namespace GOLDEngine
             InternalError = 6
         }
 
-        //===== Grammar Attributes
-
-        private GrammarProperties m_Grammar = new GrammarProperties();
         //===== Lexical Groups
         private TokenStack m_GroupStack = new TokenStack();
 
-        private GroupList m_GroupTable = new GroupList();
         public Parser()
         {
             Restart();
-            m_TablesLoaded = false;
-
-            //======= Default Properties
-            m_TrimReductions = false;
         }
 
         [Description("Opens a string for parsing.")]
@@ -234,7 +200,7 @@ namespace GOLDEngine
             m_Source = Reader;
 
             //=== Create stack top item. Only needs state
-            Start.State = m_LRStates.InitialState;
+            Start.State = m_loaded.InitialLRState;
             m_Stack.Push(Start);
 
             return true;
@@ -273,7 +239,7 @@ namespace GOLDEngine
         [Description("Returns information about the current grammar.")]
         public GrammarProperties Grammar()
         {
-            return m_Grammar;
+            return (m_loaded == null) ? null : m_loaded.Grammar;
         }
 
         [Description("Current line and column being read from the source.")]
@@ -360,265 +326,34 @@ namespace GOLDEngine
             return "GOLD Parser Engine; Version " + kVersion;
         }
 
-        internal void Clear()
-        {
-            m_SymbolTable.Clear();
-            m_ProductionTable.Clear();
-            m_CharSetTable.Clear();
-            m_DFA.Clear();
-            m_LRStates.Clear();
-
-            m_Stack.Clear();
-            m_InputTokens.Clear();
-
-            m_Grammar = new GrammarProperties();
-
-            m_GroupStack.Clear();
-            m_GroupTable.Clear();
-
-            Restart();
-        }
-
         [Description("Loads parse tables from the specified filename. Only EGT (version 5.0) is supported.")]
-        public bool LoadTables(string Path)
+        public void LoadTables(string Path)
         {
-            return LoadTables(new BinaryReader(File.Open(Path, FileMode.Open, FileAccess.Read)));
+            LoadTables(new BinaryReader(File.Open(Path, FileMode.Open, FileAccess.Read)));
         }
 
-        [Description("Loads parse tables from the specified BinaryReader. Only EGT (version 5.0) is supported.")]
-        public bool LoadTables(BinaryReader Reader)
+        /// <summary>
+        /// Loads parse tables from the specified BinaryReader.
+        /// Only EGT (version 5.0) is supported.
+        /// </summary>
+        /// <param name="Reader">A BinaryReader instance wich wraps the EGT-format grammar file.</param>
+        /// <exception cref="ParserException">If the passed-in grammar file has an unexpected format or cannot be read.</exception>
+        /// <remarks>It is the caller's resposibility to call Reader.Close() after this method completes.</remarks>
+        public void LoadTables(BinaryReader Reader)
         {
-            EGTReader EGT = new EGTReader();
-            bool Success = false;
-            EGTRecord RecType = default(EGTRecord);
-
-            try
-            {
-                EGT.Open(Reader);
-
-                Restart();
-                Success = true;
-                while (!(EGT.EndOfFile() | Success == false))
-                {
-                    EGT.GetNextRecord();
-
-                    RecType = (EGTRecord)EGT.RetrieveByte();
-
-                    switch (RecType)
-                    {
-                        case EGTRecord.Property:
-                            {
-                            //Index, Name, Value
-                            int Index = 0;
-                            string Name = null;
-
-                            Index = EGT.RetrieveInt16();
-                            Name = EGT.RetrieveString();
-                            //Just discard
-                            m_Grammar.SetValue(Index, EGT.RetrieveString());
-                            }
-                            break;
-                        case EGTRecord.TableCounts:
-                            //Symbol, CharacterSet, Rule, DFA, LALR
-                            m_SymbolTable = new SymbolList(EGT.RetrieveInt16());
-                            m_CharSetTable = new CharacterSetList(EGT.RetrieveInt16());
-                            m_ProductionTable = new ProductionList(EGT.RetrieveInt16());
-                            m_DFA = new FAStateList(EGT.RetrieveInt16());
-                            m_LRStates = new LRStateList(EGT.RetrieveInt16());
-                            m_GroupTable = new GroupList(EGT.RetrieveInt16());
-
-                            break;
-                        case EGTRecord.InitialStates:
-                            //DFA, LALR
-                            m_DFA.InitialState = EGT.RetrieveInt16();
-                            m_LRStates.InitialState = EGT.RetrieveInt16();
-
-                            break;
-                        case EGTRecord.Symbol:
-                            {
-                            //#, Name, Kind
-                            short Index = 0;
-                            string Name = null;
-                            SymbolType Type = default(SymbolType);
-
-                            Index = EGT.RetrieveInt16();
-                            Name = EGT.RetrieveString();
-                            Type = (SymbolType)EGT.RetrieveInt16();
-
-                            m_SymbolTable[Index] = new Symbol(Name, Type, Index);
-                            }
-                            break;
-                        case EGTRecord.Group:
-                            //#, Name, Container#, Start#, End#, Tokenized, Open Ended, Reserved, Count, (Nested Group #...) 
-                            {
-                            Group G = new Group();
-                            int Index = 0;
-                            int Count = 0;
-                            int n = 0;
-                            {
-                                Index = EGT.RetrieveInt16();
-                                //# 
-
-                                G.Name = EGT.RetrieveString();
-                                G.Container = SymbolTable()[EGT.RetrieveInt16()];
-                                G.Start = SymbolTable()[EGT.RetrieveInt16()];
-                                G.End = SymbolTable()[EGT.RetrieveInt16()];
-
-                                G.Advance = (Group.AdvanceMode)EGT.RetrieveInt16();
-                                G.Ending = (Group.EndingMode)EGT.RetrieveInt16();
-                                EGT.RetrieveEntry();
-                                //Reserved
-
-                                Count = EGT.RetrieveInt16();
-                                for (n = 1; n <= Count; n++)
-                                {
-                                    G.Nesting.Add(EGT.RetrieveInt16());
-                                }
-                            }
-
-
-                            //=== Link back
-                            G.Container.Group = G;
-                            G.Start.Group = G;
-                            G.End.Group = G;
-
-                            m_GroupTable[Index] = G;
-                            }
-                            break;
-                        case EGTRecord.CharRanges:
-                            //#, Total Sets, RESERVED, (Start#, End#  ...)
-                            {
-                            int Index = 0;
-                            int Total = 0;
-
-                            Index = EGT.RetrieveInt16();
-                            EGT.RetrieveInt16();
-                            //Codepage
-                            Total = EGT.RetrieveInt16();
-                            EGT.RetrieveEntry();
-                            //Reserved
-
-                            m_CharSetTable[Index] = new CharacterSet();
-                            while (!(EGT.RecordComplete()))
-                            {
-                                m_CharSetTable[Index].Add(new CharacterRange(EGT.RetrieveUInt16(), EGT.RetrieveUInt16()));
-                            }
-                            }
-                            break;
-                        case EGTRecord.Production:
-                            //#, ID#, Reserved, (Symbol#,  ...)
-                            {
-                            short Index = 0;
-                            int HeadIndex = 0;
-                            int SymIndex = 0;
-
-                            Index = EGT.RetrieveInt16();
-                            HeadIndex = EGT.RetrieveInt16();
-                            EGT.RetrieveEntry();
-                            //Reserved
-
-                            m_ProductionTable[Index] = new Production(m_SymbolTable[HeadIndex], Index);
-
-                            while (!(EGT.RecordComplete()))
-                            {
-                                SymIndex = EGT.RetrieveInt16();
-                                m_ProductionTable[Index].Handle().Add(m_SymbolTable[SymIndex]);
-                            }
-                            }
-                            break;
-                        case EGTRecord.DFAState:
-                            //#, Accept?, Accept#, Reserved (CharSet#, Target#, Reserved)...
-                            {
-                            int Index = 0;
-                            bool Accept = false;
-                            int AcceptIndex = 0;
-                            int SetIndex = 0;
-                            int Target = 0;
-
-                            Index = EGT.RetrieveInt16();
-                            Accept = EGT.RetrieveBoolean();
-                            AcceptIndex = EGT.RetrieveInt16();
-                            EGT.RetrieveEntry();
-                            //Reserved
-
-                            if (Accept)
-                            {
-                                m_DFA[Index] = new FAState(m_SymbolTable[AcceptIndex]);
-                            }
-                            else
-                            {
-                                m_DFA[Index] = new FAState();
-                            }
-
-                            //(Edge chars, Target#, Reserved)...
-                            while (!(EGT.RecordComplete()))
-                            {
-                                SetIndex = EGT.RetrieveInt16();
-                                //Char table index
-                                Target = EGT.RetrieveInt16();
-                                //Target
-                                EGT.RetrieveEntry();
-                                //Reserved
-
-                                m_DFA[Index].Edges.Add(new FAEdge(m_CharSetTable[SetIndex], Target));
-                            }
-                            }
-                            break;
-                        case EGTRecord.LRState:
-                            //#, Reserved (Symbol#, Action, Target#, Reserved)...
-                            {
-                            int Index = 0;
-                            int SymIndex = 0;
-                            LRActionType Action = 0;
-                            short Target = 0;
-
-                            Index = EGT.RetrieveInt16();
-                            EGT.RetrieveEntry();
-                            //Reserved
-
-                            m_LRStates[Index] = new LRState();
-
-                            //(Symbol#, Action, Target#, Reserved)...
-                            while (!EGT.RecordComplete())
-                            {
-                                SymIndex = EGT.RetrieveInt16();
-                                Action = (LRActionType)EGT.RetrieveInt16();
-                                Target = EGT.RetrieveInt16();
-                                EGT.RetrieveEntry();
-                                //Reserved
-
-                                m_LRStates[Index].Add(new LRAction(m_SymbolTable[SymIndex], Action, Target));
-                            }
-                            }
-                            break;
-                        default:
-                            //RecordIDComment
-                            Success = false;
-                            throw new ParserException("File Error. A record of type '" + Strings.ChrW((int)RecType) + "' was read. This is not a valid code.");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new ParserException(ex.Message, ex, "LoadTables");
-            }
-
-            Reader.Close();
-            m_TablesLoaded = Success;
-
-            return Success;
+            m_loaded = new EGT(Reader);
         }
 
         [Description("Returns a list of Symbols recognized by the grammar.")]
         public SymbolList SymbolTable()
         {
-            return m_SymbolTable;
+            return (m_loaded == null) ? null : m_loaded.SymbolTable;
         }
 
         [Description("Returns a list of Productions recognized by the grammar.")]
         public ProductionList ProductionTable()
         {
-            return m_ProductionTable;
+            return (m_loaded == null) ? null : m_loaded.ProductionTable;
         }
 
         [Description("If the Parse() method returns a SyntaxError, this method will contain a list of the symbols the grammar expected to see.")]
@@ -638,14 +373,13 @@ namespace GOLDEngine
             //The Message parameter is then set to the type of action.
 
             short Index = 0;
-            int n = 0;
             LRAction ParseAction = default(LRAction);
             Production Prod = default(Production);
             Token Head = default(Token);
             Reduction NewReduction = default(Reduction);
             ParseResult Result = default(ParseResult);
 
-            ParseAction = m_LRStates[m_CurrentLALR][NextToken.Parent];
+            ParseAction = m_loaded.FindLRAction(m_CurrentLALR, NextToken.Parent);
 
             // Work - shift or reduce
             if ((ParseAction != null))
@@ -670,7 +404,7 @@ namespace GOLDEngine
                         break;
                     case LRActionType.Reduce:
                         //Produce a reduction - remove as many tokens as members in the rule & push a nonterminal token
-                        Prod = m_ProductionTable[ParseAction.Value];
+                        Prod = m_loaded.GetProduction(ParseAction);
 
                         //======== Create Reduction
                         if (m_TrimReductions & Prod.ContainsOneNonTerminal())
@@ -695,7 +429,7 @@ namespace GOLDEngine
 
                             {
                                 NewReduction.Parent = Prod;
-                                for (n = Prod.Handle().Count() - 1; n >= 0; n += -1)
+                                for (int n = Prod.Handle().Count() - 1; n >= 0; n += -1)
                                 {
                                     NewReduction[n] = m_Stack.Pop();
                                 }
@@ -708,17 +442,17 @@ namespace GOLDEngine
                         //========== Goto
                         Index = m_Stack.Top().State;
 
-                        //========= If n is -1 here, then we have an Internal Table Error!!!!
-                        n = m_LRStates[Index].IndexOf(Prod.Head());
-                        if (n != -1)
+                        LRAction found = m_loaded.FindLRAction(Index, Prod.Head());
+                        if (found != null)
                         {
-                            m_CurrentLALR = m_LRStates[Index][n].Value;
+                            m_CurrentLALR = found.Value;
 
                             Head.State = m_CurrentLALR;
                             m_Stack.Push(Head);
                         }
                         else
                         {
+                            //========= If action not found here, then we have an Internal Table Error!!!!
                             Result = ParseResult.InternalError;
                         }
                         break;
@@ -728,20 +462,7 @@ namespace GOLDEngine
             else
             {
                 //=== Syntax Error! Fill Expected Tokens
-                m_ExpectedSymbols.Clear();
-                //.Count - 1
-                foreach (LRAction Action in m_LRStates[m_CurrentLALR])
-                {
-                    switch (Action.Symbol.Type)
-                    {
-                        case SymbolType.Content:
-                        case SymbolType.End:
-                        case SymbolType.GroupStart:
-                        case SymbolType.GroupEnd:
-                            m_ExpectedSymbols.Add(Action.Symbol);
-                            break;
-                    }
-                }
+                m_ExpectedSymbols = m_loaded.GetExpectedSymbols(m_CurrentLALR);
                 Result = ParseResult.SyntaxError;
             }
 
@@ -752,7 +473,7 @@ namespace GOLDEngine
         [Description("Restarts the parser. Loaded tables are retained.")]
         public void Restart()
         {
-            m_CurrentLALR = m_LRStates.InitialState;
+            m_CurrentLALR = (m_loaded == null) ? (short)0 : m_loaded.InitialLRState;
 
             //=== Lexer
             m_SysPosition.Column = 0;
@@ -762,7 +483,7 @@ namespace GOLDEngine
 
             m_HaveReduction = false;
 
-            m_ExpectedSymbols.Clear();
+            m_ExpectedSymbols = null;
             m_InputTokens.Clear();
             m_Stack.Clear();
             m_LookaheadBuffer = "";
@@ -774,7 +495,7 @@ namespace GOLDEngine
         [Description("Returns true if parse tables were loaded.")]
         public bool TablesLoaded()
         {
-            return m_TablesLoaded;
+            return (m_loaded != null);
         }
 
         private Token LookaheadDFA()
@@ -785,22 +506,23 @@ namespace GOLDEngine
 
             string Ch = null;
             int n = 0;
-            int Target = 0;
-            int CurrentDFA = 0;
             bool Found = false;
             bool Done = false;
             FAEdge Edge = default(FAEdge);
             int CurrentPosition = 0;
-            int LastAcceptState = 0;
             int LastAcceptPosition = 0;
             Token Result = new Token();
+
+            short Target = 0;
+            short CurrentDFA = 0;
+            short LastAcceptState = 0;
 
             //===================================================
             //Match DFA token
             //===================================================
 
             Done = false;
-            CurrentDFA = m_DFA.InitialState;
+            CurrentDFA = m_loaded.InitialDFAState;
             CurrentPosition = 1;
             //Next byte in the input Stream
             LastAcceptState = -1;
@@ -825,11 +547,12 @@ namespace GOLDEngine
                     }
                     else
                     {
+                        FAState faState = m_loaded.GetFAState(CurrentDFA);
                         n = 0;
                         Found = false;
-                        while (n < m_DFA[CurrentDFA].Edges.Count & !Found)
+                        while (n < faState.Edges.Count & !Found)
                         {
-                            Edge = m_DFA[CurrentDFA].Edges[n];
+                            Edge = faState.Edges[n];
 
                             //==== Look for character in the Character Set Table
                             if (Edge.Characters.Contains(Strings.AscW(Ch)))
@@ -855,7 +578,7 @@ namespace GOLDEngine
                         // number of characters.
 
                         //NOT is very important!
-                        if ((m_DFA[Target].Accept != null))
+                        if ((m_loaded.GetFAState(Target).Accept != null))
                         {
                             LastAcceptState = Target;
                             LastAcceptPosition = CurrentPosition;
@@ -872,13 +595,13 @@ namespace GOLDEngine
                         // Lexer cannot recognize symbol
                         if (LastAcceptState == -1)
                         {
-                            Result.Parent = m_SymbolTable.GetFirstOfType(SymbolType.Error);
+                            Result.Parent = m_loaded.GetFirstSymbolOfType(SymbolType.Error);
                             Result.Data = LookaheadBuffer(1);
                             // Create Token, read characters
                         }
                         else
                         {
-                            Result.Parent = m_DFA[LastAcceptState].Accept;
+                            Result.Parent = m_loaded.GetFAState(LastAcceptState).Accept;
                             Result.Data = LookaheadBuffer(LastAcceptPosition);
                             //Data contains the total number of accept characters
                         }
@@ -891,7 +614,7 @@ namespace GOLDEngine
             {
                 // End of file reached, create End Token
                 Result.Data = "";
-                Result.Parent = m_SymbolTable.GetFirstOfType(SymbolType.End);
+                Result.Parent = m_loaded.GetFirstSymbolOfType(SymbolType.End);
             }
 
             //===================================================
@@ -1066,7 +789,7 @@ namespace GOLDEngine
             Token Read = default(Token);
             ParseResult Action = default(ParseResult);
 
-            if (!m_TablesLoaded)
+            if (!TablesLoaded())
             {
                 return ParseMessage.NotLoadedError;
             }
