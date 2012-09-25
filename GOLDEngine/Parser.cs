@@ -1,7 +1,7 @@
 using System;
+using System.Text;
 using System.Collections.Generic;
 using System.ComponentModel;
-using Microsoft.VisualBasic;
 
 using System.IO;
 
@@ -124,6 +124,22 @@ namespace GOLDEngine
         }
     }
 
+    public class TokenStack : Stack<Token>
+    {
+        /// <summary>
+        /// Add to end of list.
+        /// </summary>
+        public void Enqueue(Token item)
+        {
+            Stack<Token> copy = new Stack<Token>(base.Count);
+            while (base.Count > 0)
+                copy.Push(base.Pop());
+            Push(item);
+            while (copy.Count > 0)
+                base.Push(copy.Pop());
+        }
+    }
+
 
     public class Parser
     {
@@ -139,10 +155,79 @@ namespace GOLDEngine
         //    methods needed to interact with the developer.
         //===================================================================
 
+        class LookaheadBuffer
+        {
+            StringBuilder m_buffer = new StringBuilder();
+
+            internal void Clear()
+            {
+                m_buffer.Length = 0;
+            }
+
+            internal int Length { get { return m_buffer.Length; } }
+
+            internal char this[int index] { get { return m_buffer[index]; } }
+
+            internal void Remove(int startIndex, int length) { m_buffer.Remove(startIndex, length); }
+
+            internal string GetString(int Count)
+            {
+                //Return Count characters from the lookahead buffer. DO NOT CONSUME
+                //This is used to create the text stored in a token. It is disgarded
+                //separately. Because of the design of the DFA algorithm, count should
+                //never exceed the buffer length. The If-Statement below is fault-tolerate
+                //programming, but not necessary.
+
+                if (Count > m_buffer.Length)
+                {
+                    Count = m_buffer.Length;
+                }
+
+                return m_buffer.ToString(0, Count);
+            }
+
+            internal char? Lookahead(int CharIndex, TextReader textReader)
+            {
+                //Return single char at the index. This function will also increase 
+                //buffer if the specified character is not present. It is used 
+                //by the DFA algorithm.
+
+                int ReadCount = 0;
+                int n = 0;
+
+                //Check if we must read characters from the Stream
+                if (CharIndex > m_buffer.Length)
+                {
+                    ReadCount = CharIndex - m_buffer.Length;
+                    for (n = 1; n <= ReadCount; n++)
+                    {
+                        int next = textReader.Read();
+                        if (next == -1)
+                            break;
+                        // Assume that StreamReader was opened with appropriate Encoder
+                        // so that what we read has already been converted to Unicode?
+                        char c = (char)next;
+                        m_buffer.Append(c);
+                    }
+                }
+
+                //If the buffer is still smaller than the index, we have reached
+                //the end of the text. In this case, return a null string - the DFA
+                //code will understand.
+                if (CharIndex <= m_buffer.Length)
+                {
+                    return m_buffer[CharIndex - 1];
+                }
+                else
+                {
+                    return null;
+                }
+            }
+        }
 
         private const string kVersion = "5.0";
 
-        private string m_LookaheadBuffer;
+        private LookaheadBuffer m_LookaheadBuffer = new LookaheadBuffer();
         private short m_CurrentLALR;
 
         private Stack<Token> m_Stack = new Stack<Token>();
@@ -154,7 +239,7 @@ namespace GOLDEngine
 
         //===== Private control variables
         //Tokens to be analyzed - Hybred object!
-        private TokenQueueStack m_InputTokens = new TokenQueueStack();
+        private TokenStack m_InputTokens = new TokenStack();
 
         private TextReader m_Source;
         //=== Line and column information. 
@@ -162,6 +247,8 @@ namespace GOLDEngine
         private Position m_SysPosition = new Position();
         //Last read terminal
         private Position m_CurrentPosition = new Position();
+
+        private Converter<char, ushort> m_charToShort = c => ((ushort)c);
 
         private EGT m_loaded;
 
@@ -203,6 +290,15 @@ namespace GOLDEngine
             return true;
         }
 
+        /// <summary>
+        /// Use this to specify the algorithm used to convert 'char' (which are read from TextReader)
+        /// to 'ushort' (which are defined in the CharacterSet tables);
+        /// </summary>
+        public Converter<char, ushort> CharConverter
+        {
+            set { m_charToShort = value; }
+        }
+
         [Description("When the Parse() method returns a Reduce, this method will contain the current Reduction.")]
         public Reduction CurrentReduction
         {
@@ -234,70 +330,19 @@ namespace GOLDEngine
             return m_InputTokens.Peek();
         }
 
-        [Description("Removes the next token from the input queue.")]
-        public Token DiscardCurrentToken()
+        /// <summary>
+        /// This gives the application read/write access to the parser's internal token stack.
+        /// Handle with care.
+        /// The application can manipulate the stack, for example:
+        /// <list type="">
+        /// <item>TokenStack.Pop() to remove the next token from the input queue.</item>
+        /// <item>TokenStack.Push() to push the token onto the top of the input queue. This token will be analyzed next.</item>
+        /// <item>TokenStack.Enqueue() to append a token onto the end of the input queue.</item>
+        /// </list>
+        /// </summary>
+        public TokenStack TokenStack
         {
-            return m_InputTokens.Pop();
-        }
-
-        [Description("Added a token onto the end of the input queue.")]
-        public void EnqueueInput(ref Token TheToken)
-        {
-            m_InputTokens.Enqueue(TheToken);
-        }
-
-        [Description("Pushes the token onto the top of the input queue. This token will be analyzed next.")]
-        public void PushInput(ref Token TheToken)
-        {
-            m_InputTokens.Push(TheToken);
-        }
-
-        private string LookaheadBuffer(int Count)
-        {
-            //Return Count characters from the lookahead buffer. DO NOT CONSUME
-            //This is used to create the text stored in a token. It is disgarded
-            //separately. Because of the design of the DFA algorithm, count should
-            //never exceed the buffer length. The If-Statement below is fault-tolerate
-            //programming, but not necessary.
-
-            if (Count > m_LookaheadBuffer.Length)
-            {
-                Count = m_LookaheadBuffer.Length;
-            }
-
-            return m_LookaheadBuffer.Substring(0, Count);
-        }
-
-        private string Lookahead(int CharIndex)
-        {
-            //Return single char at the index. This function will also increase 
-            //buffer if the specified character is not present. It is used 
-            //by the DFA algorithm.
-
-            int ReadCount = 0;
-            int n = 0;
-
-            //Check if we must read characters from the Stream
-            if (CharIndex > m_LookaheadBuffer.Length)
-            {
-                ReadCount = CharIndex - m_LookaheadBuffer.Length;
-                for (n = 1; n <= ReadCount; n++)
-                {
-                    m_LookaheadBuffer += Strings.ChrW(m_Source.Read());
-                }
-            }
-
-            //If the buffer is still smaller than the index, we have reached
-            //the end of the text. In this case, return a null string - the DFA
-            //code will understand.
-            if (CharIndex <= m_LookaheadBuffer.Length)
-            {
-                return new string(m_LookaheadBuffer[CharIndex - 1], 1);
-            }
-            else
-            {
-                return "";
-            }
+            get { return m_InputTokens; }
         }
 
         [Description("Library name and version.")]
@@ -309,7 +354,8 @@ namespace GOLDEngine
         [Description("Loads parse tables from the specified filename. Only EGT (version 5.0) is supported.")]
         public void LoadTables(string Path)
         {
-            LoadTables(new BinaryReader(File.Open(Path, FileMode.Open, FileAccess.Read)));
+            using (BinaryReader reader = new BinaryReader(File.Open(Path, FileMode.Open, FileAccess.Read)))
+                LoadTables(reader);
         }
 
         /// <summary>
@@ -448,7 +494,7 @@ namespace GOLDEngine
             m_ExpectedSymbols = null;
             m_InputTokens.Clear();
             m_Stack.Clear();
-            m_LookaheadBuffer = "";
+            m_LookaheadBuffer.Clear();
 
             //==== V4
             m_GroupStack.Clear();
@@ -466,7 +512,7 @@ namespace GOLDEngine
             //It generates a token which is used by the LALR state
             //machine.
 
-            string Ch = null;
+            char? Ch = null;
             int n = 0;
             bool Found = false;
             FAEdge Edge = default(FAEdge);
@@ -489,9 +535,9 @@ namespace GOLDEngine
             //We have not yet accepted a character string
             LastAcceptPosition = -1;
 
-            Ch = Lookahead(1);
+            Ch = m_LookaheadBuffer.Lookahead(1, m_Source);
             //NO MORE DATA
-            if (!(string.IsNullOrEmpty(Ch) | Strings.AscW(Ch) == 65535))
+            if (Ch.HasValue)
             {
                 for (;;)
                 {
@@ -499,9 +545,9 @@ namespace GOLDEngine
                     // for the next character in the input Stream. If found the
                     // target state is returned.
 
-                    Ch = Lookahead(CurrentPosition);
+                    Ch = m_LookaheadBuffer.Lookahead(CurrentPosition, m_Source);
                     //End reached, do not match
-                    if (string.IsNullOrEmpty(Ch))
+                    if (!Ch.HasValue)
                     {
                         Found = false;
                     }
@@ -515,7 +561,7 @@ namespace GOLDEngine
                             Edge = faState.Edges[n];
 
                             //==== Look for character in the Character Set Table
-                            if (Edge.Characters.Contains(Strings.AscW(Ch)))
+                            if (Edge.Characters.Contains(m_charToShort(Ch.Value)))
                             {
                                 Found = true;
                                 Target = Edge.Target;
@@ -555,13 +601,13 @@ namespace GOLDEngine
                         if (LastAcceptState == -1)
                         {
                             return new Terminal(m_loaded.GetFirstSymbolOfType(SymbolType.Error),
-                                LookaheadBuffer(1), m_SysPosition);
+                                m_LookaheadBuffer.GetString(1), m_SysPosition);
                             // Create Token, read characters
                         }
                         else
                         {
                             return new Terminal(m_loaded.GetFAState(LastAcceptState).Accept,
-                                LookaheadBuffer(LastAcceptPosition), m_SysPosition);
+                                m_LookaheadBuffer.GetString(LastAcceptPosition), m_SysPosition);
                             //Data contains the total number of accept characters
                         }
                     }
@@ -601,7 +647,7 @@ namespace GOLDEngine
                     }
                 }
 
-                m_LookaheadBuffer = m_LookaheadBuffer.Remove(0, CharCount);
+                m_LookaheadBuffer.Remove(0, CharCount);
             }
         }
 

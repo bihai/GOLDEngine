@@ -18,7 +18,7 @@ namespace GOLDEngine.Tables
 
     internal class CharacterSet : List<CharacterRange>
     {
-        public bool Contains(int CharCode)
+        public bool Contains(ushort CharCode)
         {
             //This procedure searchs the set to deterimine if the CharCode is in one
             //of the ranges - and, therefore, the set.
@@ -26,22 +26,8 @@ namespace GOLDEngine.Tables
             //exceeding 10 total. As a result, a simple linear search is sufficient 
             //rather than a binary search. In fact, a binary search overhead might
             //slow down the search!
-
-            bool Found = false;
-            int n = 0;
-            CharacterRange Range = default(CharacterRange);
-
-            while ((n < base.Count) & (!Found))
-            {
-                Range = base[n];
-
-                Found = (CharCode >= Range.Start & CharCode <= Range.End);
-                n += 1;
-            }
-
-            return Found;
+            return base.Exists(range => (CharCode >= range.Start & CharCode <= range.End));
         }
-
     }
 
     internal class CharacterSetList : List<CharacterSet>

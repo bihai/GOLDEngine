@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using Microsoft.VisualBasic;
 
 namespace GOLDEngine.Tables
 {
@@ -268,7 +267,7 @@ namespace GOLDEngine.Tables
                             break;
                         default:
                             //RecordIDComment
-                            throw new ParserException("File Error. A record of type '" + Strings.ChrW((int)RecType) + "' was read. This is not a valid code.");
+                            throw new ParserException("File Error. A record of type '" + (char)RecType + "' was read. This is not a valid code.");
                     }
                 }
             }
@@ -326,7 +325,7 @@ namespace GOLDEngine.Tables
                 }
 
                 public IOException(EntryType Type, BinaryReader Reader)
-                    : base("Type mismatch in file. Read '" + Strings.ChrW((int)Type) + "' at " + Reader.BaseStream.Position)
+                    : base("Type mismatch in file. Read '" + (char)Type + "' at " + Reader.BaseStream.Position)
                 {
                 }
             }
@@ -474,7 +473,7 @@ namespace GOLDEngine.Tables
                     }
                     else
                     {
-                        Text.Append(Strings.ChrW(Char16));
+                        Text.Append((char)Char16);
                     }
                 }
 
