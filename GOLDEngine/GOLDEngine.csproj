@@ -45,7 +45,9 @@
     <Compile Include="Position.cs" />
     <Compile Include="Production.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Reduction.cs" />
+    <Compile Include="Reduction.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Symbol.cs" />
     <Compile Include="Tables\CharacterRange.cs" />
     <Compile Include="Tables\EGT.cs" />
@@ -53,6 +55,7 @@
     <Compile Include="Tables\FAState.cs" />
     <Compile Include="Tables\Group.cs" />
     <Compile Include="Tables\LRState.cs" />
+    <Compile Include="Terminal.cs" />
     <Compile Include="Token.cs" />
   </ItemGroup>
   <ItemGroup>

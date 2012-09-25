@@ -151,6 +151,11 @@ namespace GOLDEngine
         //CANNOT inherit, must hide methods that edit the list
         private List<Symbol> m_Array;
 
+        internal SymbolList(List<Symbol> symbols)
+        {
+            m_Array = symbols;
+        }
+
         internal SymbolList(int Size)
         {
             m_Array = new List<Symbol>(Size);

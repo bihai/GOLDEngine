@@ -1,20 +1,24 @@
 namespace GOLDEngine
 {
-    public class Position
+    public struct Position
     {
-        public int Line;
+        readonly public int Line;
+        readonly public int Column;
 
-        public int Column;
-        internal Position()
+        internal Position NextLine
         {
-            this.Line = 0;
-            this.Column = 0;
+            get { return new Position(Line + 1, 0); }
         }
 
-        internal void Copy(Position Pos)
+        internal Position NextColumn
         {
-            this.Column = Pos.Column;
-            this.Line = Pos.Line;
+            get { return new Position(Line, Column + 1); }
+        }
+
+        Position(int Line, int Column)
+        {
+            this.Line = Line;
+            this.Column = Column;
         }
     }
 }

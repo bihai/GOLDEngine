@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Microsoft.VisualBasic;
@@ -39,7 +40,7 @@ namespace GOLDEngine.Tables
         internal SymbolList GetExpectedSymbols(short CurrentLALR)
         {
             LRState state = m_LRStates[CurrentLALR];
-            SymbolList expectedSymbols = new SymbolList(0);
+            List<Symbol> expectedSymbols = new List<Symbol>();
             state.ForEach(action =>
             {
                 switch (action.Symbol.Type)
@@ -52,7 +53,7 @@ namespace GOLDEngine.Tables
                         break;
                 }
             });
-            return expectedSymbols;
+            return new SymbolList(expectedSymbols);
         }
         internal FAState GetFAState(short CurrentDFA)
         {
@@ -189,13 +190,15 @@ namespace GOLDEngine.Tables
                                 EGT.RetrieveEntry();
                                 //Reserved
 
-                                m_ProductionTable[Index] = new Production(m_SymbolTable[HeadIndex], Index);
-
+                                List<Symbol> symbols = new List<Symbol>();
                                 while (!(EGT.RecordComplete()))
                                 {
                                     SymIndex = EGT.RetrieveInt16();
-                                    m_ProductionTable[Index].Handle().Add(m_SymbolTable[SymIndex]);
+                                    //m_ProductionTable[Index].Handle().Add(m_SymbolTable[SymIndex]);
+                                    symbols.Add(m_SymbolTable[SymIndex]);
                                 }
+                                SymbolList symbolList = new SymbolList(symbols);
+                                m_ProductionTable[Index] = new Production(m_SymbolTable[HeadIndex], Index, symbolList);
                             }
                             break;
                         case EGTRecord.DFAState:

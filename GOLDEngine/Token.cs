@@ -5,70 +5,40 @@ using GOLDEngine.Tables;
 
 namespace GOLDEngine
 {
+    /// <summary>
+    /// Token is a base class for two subclasses: Reduction, and Terminal.
+    /// Every Token is either a Reduction or a Terminal.
+    /// Data associated with the token is contained in the subclass.
+    /// </summary>
     public class Token
     {
-        //================================================================================
-        // Class Name:
-        //      Token
-        //
-        // Purpose:
-        //       While the Symbol represents a class of terminals and nonterminals, the
-        //       Token represents an individual piece of information.
-        //       Ideally, the token would inherit directly from the Symbol Class, but do to
-        //       the fact that Visual Basic 5/6 does not support this aspect of Object Oriented
-        //       Programming, a Symbol is created as a member and its methods are mimicked.
-        //
-        // Author(s):
-        //      Devin Cook
-        //
-        // Dependacies:
-        //      Symbol, Position
-        //
-        //================================================================================
-        private short m_State;
-        private object m_Data;
         private Symbol m_Parent;
+        private short m_State;
+        private Position? m_Position;
 
-        private Position m_Position = new Position();
-        internal Token()
+        /// <summary>
+        /// Create stack top item. Only needs state.
+        /// </summary>
+        internal static Token CreateFirstToken(short initialLRState)
+        {
+            return new Token(initialLRState);
+        }
+        Token(short initialLRState)
         {
             m_Parent = null;
-            m_Data = null;
-            m_State = 0;
+            m_State = initialLRState;
+            m_Position = null;
         }
 
-        public Token(Symbol Parent, object Data)
+        protected Token(Symbol Parent, Position? position, bool isTerminal)
         {
+            if ((Parent.Type != SymbolType.Nonterminal) ^ isTerminal)
+            {
+                throw new ParserException("Unexpected SymbolType");
+            }
             m_Parent = Parent;
-            m_Data = Data;
             m_State = 0;
-        }
-
-        [Description("Returns the line/column position where the token was read.")]
-        public Position Position()
-        {
-            return m_Position;
-        }
-
-        [Description("Returns/sets the object associated with the token.")]
-        public object Data
-        {
-            get { return m_Data; }
-            set { m_Data = value; }
-        }
-
-        internal int DataStringLength
-        {
-            get { return ((string)m_Data).Length; }
-        }
-
-        internal void DataStringAppend(Token rhs)
-        {
-            m_Data = (string)m_Data + (string)rhs.m_Data;
-        }
-        internal void DataStringAppendFirstChar(Token rhs)
-        {
-            m_Data = (string)m_Data + ((string)rhs.m_Data)[0];
+            m_Position = position;
         }
 
         internal short State
@@ -77,18 +47,34 @@ namespace GOLDEngine
             set { m_State = value; }
         }
 
-        [Description("Returns the parent symbol of the token.")]
+        /// <summary>
+        /// Returns the parent symbol of the token.
+        /// </summary>
         public Symbol Parent
         {
             get { return m_Parent; }
             internal set { m_Parent = value; }
         }
 
-        [Description("Returns the symbol type associated with this token.")]
+        /// <summary>
+        /// Returns the symbol type associated with this token.
+        /// </summary>
         public SymbolType Type()
         {
             return m_Parent.Type;
         }
+
+        /// <summary>
+        /// Returns the line/column position where the token was read, if this Token is a Terminal;
+        /// or returns null if this Token is a Reduction.
+        /// </summary>
+        public Position? Position
+        {
+            get { return m_Position; }
+        }
+
+        public Terminal AsTerminal { get { return this as Terminal; } }
+        public Reduction AsReduction { get { return this as Reduction; } }
 
         internal Group Group()
         {
@@ -96,103 +82,11 @@ namespace GOLDEngine
         }
     }
 
-    public class TokenList
-    {
-        //Don't inherit - hide array modifying methods
-        private List<Token> m_Array;
-
-        internal TokenList()
-        {
-            m_Array = new List<Token>();
-        }
-
-        [Description("Returns the token with the specified index.")]
-        public Token this[int Index]
-        {
-            get { return m_Array[Index]; }
-
-            internal set { m_Array[Index] = value; }
-        }
-
-        internal void Add(Token Item)
-        {
-            m_Array.Add(Item);
-        }
-
-        [Description("Returns the total number of tokens in the list.")]
-        public int Count()
-        {
-            return m_Array.Count;
-        }
-
-        internal void Clear()
-        {
-            m_Array.Clear();
-        }
-    }
-
-    internal class TokenStack
-    {
-        //================================================================================
-        // Class Name:
-        //      TokenStack    '
-        // Instancing:
-        //      Private; Internal  (VB Setting: 1 - Private)
-        //
-        // Purpose:
-        //      This class is used by the GOLDParser class to store tokens during parsing.
-        //      In particular, this class is used the the LALR(1) state machine.
-        //
-        // Author(s):
-        //      Devin Cook
-        //      GOLDParser@DevinCook.com
-        //
-        // Dependacies:
-        //      Token Class
-        //
-        // Revision History
-        //     12/11/2001
-        //         Modified the stack to not deallocate the array until cleared
-        //================================================================================
-
-
-        private Stack<Token> m_Stack;
-        public TokenStack()
-        {
-            m_Stack = new Stack<Token>();
-        }
-
-        internal int Count
-        {
-            get { return m_Stack.Count; }
-        }
-
-        public void Clear()
-        {
-            m_Stack.Clear();
-        }
-
-        public void Push(Token TheToken)
-        {
-            m_Stack.Push(TheToken);
-        }
-
-        public Token Pop()
-        {
-            return m_Stack.Pop();
-        }
-
-        public Token Top()
-        {
-            return m_Stack.Peek();
-        }
-    }
-
     internal class TokenQueueStack
     {
         private List<Token> m_Items;
 
-        public TokenQueueStack()
+        internal TokenQueueStack()
         {
             m_Items = new List<Token>();
         }
@@ -202,28 +96,33 @@ namespace GOLDEngine
             get { return m_Items.Count; }
         }
 
-        public void Clear()
+        internal void Clear()
         {
             m_Items.Clear();
         }
 
-        public void Enqueue(Token TheToken)
+        /// <summary>
+        /// Add to end of list.
+        /// </summary>
+        internal void Enqueue(Token TheToken)
         {
             m_Items.Add(TheToken);
-            //End of list
         }
 
-        public Token Dequeue()
+        /// <summary>
+        /// Fetch and remove from front of list.
+        /// </summary>
+        internal Token Pop()
         {
-            Token Result = default(Token);
-            Result = m_Items[0];
-            //Front of list
+            Token Result = m_Items[0];
             m_Items.RemoveAt(0);
-
             return Result;
         }
 
-        public Token Top()
+        /// <summary>
+        /// Fetch from front of list.
+        /// </summary>
+        internal Token Peek()
         {
             if (m_Items.Count >= 1)
             {
@@ -235,15 +134,12 @@ namespace GOLDEngine
             }
         }
 
-        public void Push(Token TheToken)
+        /// <summary>
+        /// Add to front of list.
+        /// </summary>
+        internal void Push(Token TheToken)
         {
             m_Items.Insert(0, TheToken);
-        }
-
-        public Token Pop()
-        {
-            return Dequeue();
-            //Same as dequeue
         }
     }
 }

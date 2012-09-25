@@ -28,18 +28,13 @@ namespace GOLDEngine
 
         private Symbol m_Head;
         private SymbolList m_Handle;
-
         private short m_TableIndex;
-        internal Production(Symbol Head, short TableIndex)
+
+        internal Production(Symbol Head, short TableIndex, SymbolList Handle)
         {
             m_Head = Head;
-            m_Handle = new SymbolList(0);
+            m_Handle = Handle;
             m_TableIndex = TableIndex;
-        }
-
-        internal Production()
-        {
-            //Nothing
         }
 
         [Description("Returns the head of the production.")]

@@ -1,58 +1,51 @@
+using System.ComponentModel;
+
 namespace GOLDEngine
 {
-    using System.ComponentModel;
-
-    public class Reduction : TokenList
+    public class Reduction : Token
     {
-        //================================================================================
-        // Class Name:
-        //      Reduction
-        //
-        // Instancing:
-        //      Public; Creatable  (VB Setting: 2 - PublicNotCreatable)
-        //
-        // Purpose:
-        //      This class is used by the engine to hold a reduced rule. Rather the contain
-        //      a list of Symbols, a reduction contains a list of Tokens corresponding to the
-        //      the rule it represents. This class is important since it is used to store the
-        //      actual source program parsed by the Engine.
-        //
-        // Author(s):
-        //      Devin Cook
-        //
-        // Dependacies:
-        //================================================================================
+        Production m_production;
+        Token[] m_tokens;
+        object m_Tag;
 
-
-        private Production m_Parent;
-
-        private object m_Tag;
-        internal Reduction(int Size)
-            : base()
+        public Reduction(Production production, Token[] tokens)
+            : base(production.Head(), null, false)
         {
-            ReDimension(Size);
+            m_tokens = tokens;
+            m_production = production;
         }
 
-        internal void ReDimension(int Size)
+        public int Count
         {
-            //Increase the size of the array to Size empty elements.
-            int n = 0;
-
-            base.Clear();
-            for (n = 0; n <= Size - 1; n++)
-            {
-                base.Add(null);
-            }
+            get { return m_tokens.Length; } // Same as Symbols.Count
         }
 
-        [Description("Returns the parent production.")]
-        public Production Parent
+        public Token this[int index]
         {
-            get { return m_Parent; }
-            internal set { m_Parent = value; }
+            get { return m_tokens[index]; }
         }
 
-        [Description("Returns/sets any additional user-defined data to this object.")]
+        public Token[] Tokens
+        {
+            get { return m_tokens; }
+        }
+
+        public SymbolList Symbols
+        {
+            get { return m_production.Handle(); }
+        }
+
+        /// <summary>
+        /// Returns the parent production.
+        /// </summary>
+        public Production Production
+        {
+            get { return m_production; }
+        }
+
+        /// <summary>
+        /// Returns/sets any additional user-defined data to this object.
+        /// </summary>
         public object Tag
         {
             get { return m_Tag; }
