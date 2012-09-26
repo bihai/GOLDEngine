@@ -51,12 +51,6 @@ namespace GOLDEngine
 
         private short m_TableIndex;
 
-        internal Group Group;
-        internal Symbol()
-        {
-            //Nothing
-        }
-
         internal Symbol(string Name, SymbolType Type, short TableIndex)
         {
             m_Name = Name;
@@ -68,7 +62,6 @@ namespace GOLDEngine
         public SymbolType Type
         {
             get { return m_Type; }
-            internal set { m_Type = value; }
         }
 
         [Description("Returns the index of the symbol in the Symbol Table,")]
@@ -185,19 +178,9 @@ namespace GOLDEngine
         }
 
         [Description("Returns the total number of symbols in the list.")]
-        public int Count()
+        public int Count
         {
-            return m_Array.Count;
-        }
-
-        internal void Clear()
-        {
-            m_Array.Clear();
-        }
-
-        internal void Add(Symbol Item)
-        {
-            m_Array.Add(Item);
+            get { return m_Array.Count; }
         }
 
         internal Symbol GetFirstOfType(SymbolType Type)

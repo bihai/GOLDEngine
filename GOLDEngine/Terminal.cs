@@ -10,7 +10,7 @@ namespace GOLDEngine
     /// </summary>
     public class Terminal : Token
     {
-        string m_Text;
+        readonly string m_Text;
 
         /// <summary>
         /// Applications can use this method to create a 'virtual' terminal,
@@ -43,23 +43,6 @@ namespace GOLDEngine
         public override string ToString()
         {
             return m_Text;
-        }
-
-        // Internal methods.
-
-        internal int TextLength
-        {
-            get { return m_Text.Length; }
-        }
-
-        internal void TextAppend(Terminal rhs)
-        {
-            m_Text = m_Text + rhs.m_Text;
-        }
-
-        internal void TextAppendFirstChar(Terminal rhs)
-        {
-            m_Text = m_Text + rhs.m_Text[0];
         }
     }
 }

@@ -157,20 +157,16 @@ namespace GOLDEngine
 
         class LookaheadBuffer
         {
-            StringBuilder m_buffer = new StringBuilder();
+            private TextReader m_source;
+            private StringBuilder m_buffer = new StringBuilder();
+            private Position m_SysPosition = new Position();
 
-            internal void Clear()
+            internal LookaheadBuffer(TextReader source)
             {
-                m_buffer.Length = 0;
+                m_source = source;
             }
 
-            internal int Length { get { return m_buffer.Length; } }
-
-            internal char this[int index] { get { return m_buffer[index]; } }
-
-            internal void Remove(int startIndex, int length) { m_buffer.Remove(startIndex, length); }
-
-            internal string GetString(int Count)
+            internal Terminal CreateTerminal(Symbol symbol, int Count)
             {
                 //Return Count characters from the lookahead buffer. DO NOT CONSUME
                 //This is used to create the text stored in a token. It is disgarded
@@ -183,10 +179,45 @@ namespace GOLDEngine
                     Count = m_buffer.Length;
                 }
 
-                return m_buffer.ToString(0, Count);
+                string text = m_buffer.ToString(0, Count);
+                return new Terminal(symbol, text, m_SysPosition);
             }
 
-            internal char? Lookahead(int CharIndex, TextReader textReader)
+            internal void ConsumeBuffer(Terminal terminal)
+            {
+                ConsumeBuffer(terminal.Text.Length);
+            }
+
+            internal void ConsumeBuffer(int CharCount)
+            {
+                //Consume/Remove the characters from the front of the buffer. 
+
+                if (CharCount <= m_buffer.Length)
+                {
+                    // Count Carriage Returns and increment the internal column and line
+                    // numbers. This is done for the Developer and is not necessary for the
+                    // DFA algorithm.
+                    for (int n = 0; n <= CharCount - 1; n++)
+                    {
+                        switch (m_buffer[n])
+                        {
+                            case '\n':
+                                m_SysPosition = m_SysPosition.NextLine;
+                                break;
+                            case '\r':
+                                break;
+                            //Ignore, LF is used to inc line to be UNIX friendly
+                            default:
+                                m_SysPosition = m_SysPosition.NextColumn;
+                                break;
+                        }
+                    }
+
+                    m_buffer.Remove(0, CharCount);
+                }
+            }
+
+            internal char? Lookahead(int CharIndex)
             {
                 //Return single char at the index. This function will also increase 
                 //buffer if the specified character is not present. It is used 
@@ -201,7 +232,7 @@ namespace GOLDEngine
                     ReadCount = CharIndex - m_buffer.Length;
                     for (n = 1; n <= ReadCount; n++)
                     {
-                        int next = textReader.Read();
+                        int next = m_source.Read();
                         if (next == -1)
                             break;
                         // Assume that StreamReader was opened with appropriate Encoder
@@ -227,27 +258,18 @@ namespace GOLDEngine
 
         private const string kVersion = "5.0";
 
-        private LookaheadBuffer m_LookaheadBuffer = new LookaheadBuffer();
-        private short m_CurrentLALR;
-
-        private Stack<Token> m_Stack = new Stack<Token>();
-        //===== Used for Reductions & Errors
-        //This ENTIRE list will available to the user
         private SymbolList m_ExpectedSymbols = null;
         //NEW 12/2001
         private bool m_TrimReductions = false;
 
         //===== Private control variables
+        private LookaheadBuffer m_LookaheadBuffer;
+        private LALRStack m_LALRStack;
         //Tokens to be analyzed - Hybred object!
         private TokenStack m_InputTokens = new TokenStack();
-
-        private TextReader m_Source;
         //=== Line and column information. 
-        //Internal - so user cannot mess with values
-        private Position m_SysPosition = new Position();
         //Last read terminal
         private Position m_CurrentPosition = new Position();
-
         private Converter<char, ushort> m_charToShort = c => ((ushort)c);
 
         private EGT m_loaded;
@@ -265,7 +287,24 @@ namespace GOLDEngine
         }
 
         //===== Lexical Groups
-        private Stack<Terminal> m_GroupStack = new Stack<Terminal>();
+        class GroupTerminal
+        {
+            private readonly Terminal Terminal;
+            internal readonly Group Group;
+            internal string Text;
+            internal GroupTerminal(Terminal terminal, Group Group)
+            {
+                this.Terminal = terminal;
+                this.Group = Group;
+                this.Text = terminal.Text;
+            }
+            internal Terminal CreateTerminal()
+            {
+                //Change symbol to parent
+                return new Terminal(Group.Container, Text, Terminal.Position.Value);
+            }
+        }
+        private Stack<GroupTerminal> m_GroupStack = new Stack<GroupTerminal>();
 
         public Parser()
         {
@@ -282,10 +321,8 @@ namespace GOLDEngine
         public bool Open(TextReader Reader)
         {
             Restart();
-            m_Source = Reader;
-
-            //=== Create stack top item. Only needs state
-            m_Stack.Push(Token.CreateFirstToken(m_loaded.InitialLRState));
+            m_LookaheadBuffer = new LookaheadBuffer(Reader);
+            m_LALRStack = new LALRStack(m_loaded, m_TrimReductions);
 
             return true;
         }
@@ -302,14 +339,19 @@ namespace GOLDEngine
         [Description("When the Parse() method returns a Reduce, this method will contain the current Reduction.")]
         public Reduction CurrentReduction
         {
-            get { return m_Stack.Peek() as Reduction; }
+            get { return m_LALRStack.CurrentReduction; }
         }
 
         [Description("Determines if reductions will be trimmed in cases where a production contains a single element.")]
         public bool TrimReductions
         {
             get { return m_TrimReductions; }
-            set { m_TrimReductions = value; }
+            set
+            {
+                m_TrimReductions = value;
+                if (m_LALRStack != null)
+                    m_LALRStack.m_TrimReductions = value;
+            }
         }
 
         [Description("Returns information about the current grammar.")]
@@ -319,15 +361,15 @@ namespace GOLDEngine
         }
 
         [Description("Current line and column being read from the source.")]
-        public Position CurrentPosition()
+        public Position CurrentPosition
         {
-            return m_CurrentPosition;
+            get { return m_CurrentPosition; }
         }
 
         [Description("If the Parse() function returns TokenRead, this method will return that last read token.")]
-        public Token CurrentToken()
+        public Token CurrentToken
         {
-            return m_InputTokens.Peek();
+            get { return m_InputTokens.Peek(); }
         }
 
         /// <summary>
@@ -346,9 +388,9 @@ namespace GOLDEngine
         }
 
         [Description("Library name and version.")]
-        public string About()
+        public string About
         {
-            return "GOLD Parser Engine; Version " + kVersion;
+            get { return "GOLD Parser Engine; Version " + kVersion; }
         }
 
         [Description("Loads parse tables from the specified filename. Only EGT (version 5.0) is supported.")]
@@ -371,139 +413,169 @@ namespace GOLDEngine
         }
 
         [Description("Returns a list of Symbols recognized by the grammar.")]
-        public SymbolList SymbolTable()
+        public SymbolList SymbolTable
         {
-            return (m_loaded == null) ? null : m_loaded.SymbolTable;
+            get { return (m_loaded == null) ? null : m_loaded.SymbolTable; }
         }
 
         [Description("Returns a list of Productions recognized by the grammar.")]
-        public ProductionList ProductionTable()
+        public ProductionList ProductionTable
         {
-            return (m_loaded == null) ? null : m_loaded.ProductionTable;
+            get { return (m_loaded == null) ? null : m_loaded.ProductionTable; }
         }
 
         [Description("If the Parse() method returns a SyntaxError, this method will contain a list of the symbols the grammar expected to see.")]
-        public SymbolList ExpectedSymbols()
+        public SymbolList ExpectedSymbols
         {
-            return m_ExpectedSymbols;
+            get { return m_ExpectedSymbols; }
         }
 
-        private ParseResult ParseLALR(Token NextToken)
+        class LALRStack
         {
-            //This function analyzes a token and either:
-            //  1. Makes a SINGLE reduction and pushes a complete Reduction object on the m_Stack
-            //  2. Accepts the token and shifts
-            //  3. Errors and places the expected symbol indexes in the Tokens list
-            //The Token is assumed to be valid and WILL be checked
-            //If an action is performed that requires controlt to be returned to the user, the function returns true.
-            //The Message parameter is then set to the type of action.
-
-            LRAction ParseAction = m_loaded.FindLRAction(m_CurrentLALR, NextToken.Parent);
-
-            // Work - shift or reduce
-            if ((ParseAction != null))
+            EGT m_loaded;
+            internal bool m_TrimReductions;
+            short m_CurrentLALR;
+            struct Item
             {
-                //'Debug.WriteLine("Action: " & ParseAction.Text)
-
-                switch (ParseAction.Type)
+                internal Token Token;
+                internal short State;
+                internal Item(Token Token, short State)
                 {
-                    case LRActionType.Accept:
-                        return ParseResult.Accept;
-
-                    case LRActionType.Shift:
-                        m_CurrentLALR = ParseAction.Value;
-                        NextToken.State = m_CurrentLALR;
-                        m_Stack.Push(NextToken);
-                        return ParseResult.Shift;
-
-                    case LRActionType.Reduce:
-                        //Produce a reduction - remove as many tokens as members in the rule & push a nonterminal token
-                        Production Prod = m_loaded.GetProduction(ParseAction);
-
-                        ParseResult Result;
-                        Token Head;
-                        //======== Create Reduction
-                        if (m_TrimReductions & Prod.ContainsOneNonTerminal())
-                        {
-                            //The current rule only consists of a single nonterminal and can be trimmed from the
-                            //parse tree. Usually we create a new Reduction, assign it to the Data property
-                            //of Head and push it on the m_Stack. However, in this case, the Data property of the
-                            //Head will be assigned the Data property of the reduced token (i.e. the only one
-                            //on the m_Stack).
-                            //In this case, to save code, the value popped of the m_Stack is changed into the head.
-
-                            Head = m_Stack.Pop();
-                            Head.Parent = Prod.Head();
-
-                            Result = ParseResult.ReduceEliminated;
-                            //Build a Reduction
-                        }
-                        else
-                        {
-                            int nTokens = Prod.Handle().Count();
-                            Token[] tokens = new Token[nTokens];
-                            for (int i = Prod.Handle().Count() - 1; i >= 0; --i)
-                            {
-                                tokens[i] = m_Stack.Pop();
-                            }
-                            //Say that the reduction's Position is the Position of its first child.
-                            Head = new Reduction(Prod, tokens);
-                            Result = ParseResult.ReduceNormal;
-                        }
-
-                        //========== Goto
-                        short Index = m_Stack.Peek().State;
-
-                        LRAction found = m_loaded.FindLRAction(Index, Prod.Head());
-                        if ((found != null) && (found.Type == LRActionType.Goto))
-                        {
-                            m_CurrentLALR = found.Value;
-
-                            Head.State = m_CurrentLALR;
-                            m_Stack.Push(Head);
-                            return Result;
-                        }
-                        else
-                        {
-                            //========= If action not found here, then we have an Internal Table Error!!!!
-                            return ParseResult.InternalError;
-                        }
-
-                    default:
-                        return default(ParseResult);
+                    this.Token = Token;
+                    this.State = State;
                 }
-
             }
-            else
+            Stack<Item> m_Stack = new Stack<Item>();
+
+            internal LALRStack(EGT loaded, bool trimReductions)
             {
-                //=== Syntax Error! Fill Expected Tokens
-                m_ExpectedSymbols = m_loaded.GetExpectedSymbols(m_CurrentLALR);
-                return ParseResult.SyntaxError;
+                m_loaded = loaded;
+                m_TrimReductions = trimReductions;
+                m_CurrentLALR = m_loaded.InitialLRState;
+                //=== Create stack top item. Only needs state
+                m_Stack.Push(new Item(null, m_loaded.InitialLRState));
+            }
+
+            internal Reduction CurrentReduction
+            {
+                get { return m_Stack.Peek().Token as Reduction; }
+            }
+
+            internal ParseResult ParseLALR(Token NextToken)
+            {
+                //This function analyzes a token and either:
+                //  1. Makes a SINGLE reduction and pushes a complete Reduction object on the m_Stack
+                //  2. Accepts the token and shifts
+                //  3. Errors and places the expected symbol indexes in the Tokens list
+                //The Token is assumed to be valid and WILL be checked
+                //If an action is performed that requires controlt to be returned to the user, the function returns true.
+                //The Message parameter is then set to the type of action.
+
+                LRAction ParseAction = m_loaded.FindLRAction(m_CurrentLALR, NextToken.Parent);
+
+                // Work - shift or reduce
+                if ((ParseAction != null))
+                {
+                    //'Debug.WriteLine("Action: " & ParseAction.Text)
+
+                    switch (ParseAction.Type)
+                    {
+                        case LRActionType.Accept:
+                            return ParseResult.Accept;
+
+                        case LRActionType.Shift:
+                            m_CurrentLALR = ParseAction.Value;
+                            m_Stack.Push(new Item(NextToken, m_CurrentLALR));
+                            return ParseResult.Shift;
+
+                        case LRActionType.Reduce:
+                            //Produce a reduction - remove as many tokens as members in the rule & push a nonterminal token
+                            Production Prod = m_loaded.GetProduction(ParseAction);
+
+                            ParseResult Result;
+                            Token Head;
+                            //======== Create Reduction
+                            if (m_TrimReductions & Prod.ContainsOneNonTerminal())
+                            {
+                                //The current rule only consists of a single nonterminal and can be trimmed from the
+                                //parse tree. Usually we create a new Reduction, assign it to the Data property
+                                //of Head and push it on the m_Stack. However, in this case, the Data property of the
+                                //Head will be assigned the Data property of the reduced token (i.e. the only one
+                                //on the m_Stack).
+                                //In this case, to save code, the value popped of the m_Stack is changed into the head.
+
+                                Head = m_Stack.Pop().Token;
+                                Head.TrimReduction(Prod.Head());
+
+                                Result = ParseResult.ReduceEliminated;
+                                //Build a Reduction
+                            }
+                            else
+                            {
+                                int nTokens = Prod.Handle().Count;
+                                Token[] tokens = new Token[nTokens];
+                                for (int i = Prod.Handle().Count - 1; i >= 0; --i)
+                                {
+                                    tokens[i] = m_Stack.Pop().Token;
+                                }
+                                //Say that the reduction's Position is the Position of its first child.
+                                Head = new Reduction(Prod, tokens);
+                                Result = ParseResult.ReduceNormal;
+                            }
+
+                            //========== Goto
+                            short Index = m_Stack.Peek().State;
+
+                            LRAction found = m_loaded.FindLRAction(Index, Prod.Head());
+                            if ((found != null) && (found.Type == LRActionType.Goto))
+                            {
+                                m_CurrentLALR = found.Value;
+
+                                m_Stack.Push(new Item(Head, m_CurrentLALR));
+                                return Result;
+                            }
+                            else
+                            {
+                                //========= If action not found here, then we have an Internal Table Error!!!!
+                                return ParseResult.InternalError;
+                            }
+
+                        default:
+                            return ParseResult.InternalError;
+                    }
+
+                }
+                else
+                {
+                    return ParseResult.SyntaxError;
+                }
+            }
+
+            internal SymbolList GetExpectedSymbols()
+            {
+                return m_loaded.GetExpectedSymbols(m_CurrentLALR);
             }
         }
 
         [Description("Restarts the parser. Loaded tables are retained.")]
         public void Restart()
         {
-            m_CurrentLALR = (m_loaded == null) ? (short)0 : m_loaded.InitialLRState;
-
             //=== Lexer
-            m_SysPosition = new Position();
             m_CurrentPosition = new Position();
 
             m_ExpectedSymbols = null;
             m_InputTokens.Clear();
-            m_Stack.Clear();
-            m_LookaheadBuffer.Clear();
+            m_LALRStack = null;
+            m_LookaheadBuffer = null;
 
             //==== V4
             m_GroupStack.Clear();
         }
 
         [Description("Returns true if parse tables were loaded.")]
-        public bool TablesLoaded()
+        public bool TablesLoaded
         {
-            return (m_loaded != null);
+            get { return (m_loaded != null); }
         }
 
         private Terminal LookaheadDFA()
@@ -512,142 +584,84 @@ namespace GOLDEngine
             //It generates a token which is used by the LALR state
             //machine.
 
-            char? Ch = null;
-            int n = 0;
-            bool Found = false;
-            FAEdge Edge = default(FAEdge);
-            int CurrentPosition = 0;
-            int LastAcceptPosition = 0;
-            //Token Result = new Token();
-
-            short Target = 0;
-            short CurrentDFA = 0;
-            short LastAcceptState = 0;
-
             //===================================================
             //Match DFA token
             //===================================================
 
-            CurrentDFA = m_loaded.InitialDFAState;
-            CurrentPosition = 1;
+            short CurrentDFA = m_loaded.InitialDFAState;
             //Next byte in the input Stream
-            LastAcceptState = -1;
+            short LastAcceptState = -1;
             //We have not yet accepted a character string
-            LastAcceptPosition = -1;
+            int LastAcceptPosition = -1;
 
-            Ch = m_LookaheadBuffer.Lookahead(1, m_Source);
+            char? Ch = m_LookaheadBuffer.Lookahead(1);
             //NO MORE DATA
-            if (Ch.HasValue)
-            {
-                for (;;)
-                {
-                    // This code searches all the branches of the current DFA state
-                    // for the next character in the input Stream. If found the
-                    // target state is returned.
-
-                    Ch = m_LookaheadBuffer.Lookahead(CurrentPosition, m_Source);
-                    //End reached, do not match
-                    if (!Ch.HasValue)
-                    {
-                        Found = false;
-                    }
-                    else
-                    {
-                        FAState faState = m_loaded.GetFAState(CurrentDFA);
-                        n = 0;
-                        Found = false;
-                        while (n < faState.Edges.Count & !Found)
-                        {
-                            Edge = faState.Edges[n];
-
-                            //==== Look for character in the Character Set Table
-                            if (Edge.Characters.Contains(m_charToShort(Ch.Value)))
-                            {
-                                Found = true;
-                                Target = Edge.Target;
-                                //.TableIndex
-                            }
-                            n += 1;
-                        }
-                    }
-
-                    // This block-if statement checks whether an edge was found from the current state. If so, the state and current
-                    // position advance. Otherwise it is time to exit the main loop and report the token found (if there was one). 
-                    // If the LastAcceptState is -1, then we never found a match and the Error Token is created. Otherwise, a new 
-                    // token is created using the Symbol in the Accept State and all the characters that comprise it.
-
-                    if (Found)
-                    {
-                        // This code checks whether the target state accepts a token.
-                        // If so, it sets the appropiate variables so when the
-                        // algorithm in done, it can return the proper token and
-                        // number of characters.
-
-                        //NOT is very important!
-                        if ((m_loaded.GetFAState(Target).Accept != null))
-                        {
-                            LastAcceptState = Target;
-                            LastAcceptPosition = CurrentPosition;
-                        }
-
-                        CurrentDFA = Target;
-                        CurrentPosition += 1;
-
-                        //No edge found
-                    }
-                    else
-                    {
-                        // Lexer cannot recognize symbol
-                        if (LastAcceptState == -1)
-                        {
-                            return new Terminal(m_loaded.GetFirstSymbolOfType(SymbolType.Error),
-                                m_LookaheadBuffer.GetString(1), m_SysPosition);
-                            // Create Token, read characters
-                        }
-                        else
-                        {
-                            return new Terminal(m_loaded.GetFAState(LastAcceptState).Accept,
-                                m_LookaheadBuffer.GetString(LastAcceptPosition), m_SysPosition);
-                            //Data contains the total number of accept characters
-                        }
-                    }
-                }
-            }
-            else
+            if (!Ch.HasValue)
             {
                 // End of file reached, create End Token
-                return new Terminal(m_loaded.GetFirstSymbolOfType(SymbolType.End), "", m_SysPosition);
+                return m_LookaheadBuffer.CreateTerminal(m_loaded.GetFirstSymbolOfType(SymbolType.End), 0);
             }
-        }
 
-        private void ConsumeBuffer(int CharCount)
-        {
-            //Consume/Remove the characters from the front of the buffer. 
-
-            int n = 0;
-
-            if (CharCount <= m_LookaheadBuffer.Length)
+            for (int CurrentPosition = 1; ; ++CurrentPosition)
             {
-                // Count Carriage Returns and increment the internal column and line
-                // numbers. This is done for the Developer and is not necessary for the
-                // DFA algorithm.
-                for (n = 0; n <= CharCount - 1; n++)
+                // This code searches all the branches of the current DFA state
+                // for the next character in the input Stream. If found the
+                // target state is returned.
+
+                Ch = m_LookaheadBuffer.Lookahead(CurrentPosition);
+                short? Found = null;
+                //End reached, do not match
+                if (Ch.HasValue)
                 {
-                    switch (m_LookaheadBuffer[n])
+                    FAState faState = m_loaded.GetFAState(CurrentDFA);
+                    foreach (FAEdge Edge in faState.Edges)
                     {
-                        case '\n':
-                            m_SysPosition = m_SysPosition.NextLine;
+                        //==== Look for character in the Character Set Table
+                        if (Edge.Characters.Contains(m_charToShort(Ch.Value)))
+                        {
+                            Found = Edge.Target;
                             break;
-                        case '\r':
-                            break;
-                        //Ignore, LF is used to inc line to be UNIX friendly
-                        default:
-                            m_SysPosition = m_SysPosition.NextColumn;
-                            break;
+                        }
                     }
                 }
 
-                m_LookaheadBuffer.Remove(0, CharCount);
+                // This block-if statement checks whether an edge was found from the current state. If so, the state and current
+                // position advance. Otherwise it is time to exit the main loop and report the token found (if there was one). 
+                // If the LastAcceptState is -1, then we never found a match and the Error Token is created. Otherwise, a new 
+                // token is created using the Symbol in the Accept State and all the characters that comprise it.
+
+                if (Found.HasValue)
+                {
+                    // This code checks whether the target state accepts a token.
+                    // If so, it sets the appropiate variables so when the
+                    // algorithm in done, it can return the proper token and
+                    // number of characters.
+                    short Target = Found.Value;
+
+                    //NOT is very important!
+                    if ((m_loaded.GetFAState(Target).Accept != null))
+                    {
+                        LastAcceptState = Target;
+                        LastAcceptPosition = CurrentPosition;
+                    }
+
+                    CurrentDFA = Target;
+
+                    //No edge found
+                }
+                else
+                {
+                    // Lexer cannot recognize symbol
+                    if (LastAcceptState == -1)
+                    {
+                        return m_LookaheadBuffer.CreateTerminal(m_loaded.GetFirstSymbolOfType(SymbolType.Error), 1);
+                    }
+                    else
+                    {
+                        //Created Terminal contains the total number of accept characters
+                        return m_LookaheadBuffer.CreateTerminal(m_loaded.GetFAState(LastAcceptState).Accept, LastAcceptPosition);
+                    }
+                }
             }
         }
 
@@ -678,7 +692,8 @@ namespace GOLDEngine
                     }
                     else
                     {
-                        NestGroup = m_GroupStack.Peek().Group().Nesting.Contains(Read.Group().TableIndex);
+                        Group ReadGroup = m_loaded.GetGroup(Read.Parent);
+                        NestGroup = m_GroupStack.Peek().Group.CanNestGroup(ReadGroup);
                     }
                 }
                 else
@@ -692,41 +707,39 @@ namespace GOLDEngine
 
                 if (NestGroup)
                 {
-                    ConsumeBuffer(Read.TextLength);
-                    m_GroupStack.Push(Read);
+                    m_LookaheadBuffer.ConsumeBuffer(Read);
+                    m_GroupStack.Push(new GroupTerminal(Read, m_loaded.GetGroup(Read.Parent)));
 
                 }
                 else if (m_GroupStack.Count == 0)
                 {
                     //The token is ready to be analyzed.             
-                    ConsumeBuffer(Read.TextLength);
+                    m_LookaheadBuffer.ConsumeBuffer(Read);
                     return Read;
 
                 }
-                else if ((object.ReferenceEquals(m_GroupStack.Peek().Group().End, Read.Parent)))
+                else if ((object.ReferenceEquals(m_GroupStack.Peek().Group.End, Read.Parent)))
                 {
                     //End the current group
-                    Terminal Pop = m_GroupStack.Pop();
+                    GroupTerminal popped = m_GroupStack.Pop();
 
                     //=== Ending logic
-                    if (Pop.Group().Ending == Group.EndingMode.Closed)
+                    if (popped.Group.Ending == Group.EndingMode.Closed)
                     {
-                        Pop.TextAppend(Read);
+                        popped.Text += Read.Text;
                         //Append text
-                        ConsumeBuffer(Read.TextLength);
+                        m_LookaheadBuffer.ConsumeBuffer(Read);
                         //Consume token
                     }
 
                     //We are out of the group. Return pop'd token (which contains all the group text)
                     if (m_GroupStack.Count == 0)
                     {
-                        Pop.Parent = Pop.Group().Container;
-                        //Change symbol to parent
-                        return Pop;
+                        return popped.CreateTerminal();
                     }
                     else
                     {
-                        m_GroupStack.Peek().TextAppend(Pop);
+                        m_GroupStack.Peek().Text += popped.Text;
                         //Append group text to parent
                     }
 
@@ -740,19 +753,19 @@ namespace GOLDEngine
                 {
                     //We are in a group, Append to the Token on the top of the stack.
                     //Take into account the Token group mode  
-                    Terminal Top = m_GroupStack.Peek();
+                    GroupTerminal top = m_GroupStack.Peek();
 
-                    if (Top.Group().Advance == Group.AdvanceMode.Token)
+                    if (top.Group.Advance == Group.AdvanceMode.Token)
                     {
-                        Top.TextAppend(Read);
+                        top.Text += Read.Text;
                         // Append all text
-                        ConsumeBuffer(Read.TextLength);
+                        m_LookaheadBuffer.ConsumeBuffer(Read);
                     }
                     else
                     {
-                        Top.TextAppendFirstChar(Read);
+                        top.Text += Read.Text[0];
                         // Append one character
-                        ConsumeBuffer(1);
+                        m_LookaheadBuffer.ConsumeBuffer(1);
                     }
                 }
             }
@@ -761,12 +774,7 @@ namespace GOLDEngine
         [Description("Performs a parse action on the input. This method is typically used in a loop until either grammar is accepted or an error occurs.")]
         public ParseMessage Parse()
         {
-            ParseMessage Message = default(ParseMessage);
-            bool Done = false;
-            Token Read = default(Token);
-            ParseResult Action = default(ParseResult);
-
-            if (!TablesLoaded())
+            if (!TablesLoaded)
             {
                 return ParseMessage.NotLoadedError;
             }
@@ -774,29 +782,26 @@ namespace GOLDEngine
             //===================================
             //Loop until breakable event
             //===================================
-            Done = false;
-            while (!Done)
+            for(;;)
             {
                 if (m_InputTokens.Count == 0)
                 {
-                    Read = ProduceToken();
+                    Token Read = ProduceToken();
                     m_InputTokens.Push(Read);
 
-                    Message = ParseMessage.TokenRead;
-                    Done = true;
+                    return ParseMessage.TokenRead;
                 }
                 else
                 {
-                    Read = m_InputTokens.Peek();
+                    Token Read = m_InputTokens.Peek();
+                    //Update current position
                     if (Read.Position.HasValue)
                         m_CurrentPosition = Read.Position.Value;
-                    //Update current position
 
                     //Runaway group
                     if (m_GroupStack.Count != 0)
                     {
-                        Message = ParseMessage.GroupError;
-                        Done = true;
+                        return ParseMessage.GroupError;
                     }
                     else if (Read.Type() == SymbolType.Noise)
                     {
@@ -806,53 +811,43 @@ namespace GOLDEngine
                     }
                     else if (Read.Type() == SymbolType.Error)
                     {
-                        Message = ParseMessage.LexicalError;
-                        Done = true;
-
                         //Finally, we can parse the token.
+                        return ParseMessage.LexicalError;
                     }
                     else
                     {
-                        Action = ParseLALR(Read);
+                        ParseResult Action = m_LALRStack.ParseLALR(Read);
                         //SAME PROCEDURE AS v1
 
                         switch (Action)
                         {
                             case ParseResult.Accept:
-                                Message = ParseMessage.Accept;
-                                Done = true;
+                                return ParseMessage.Accept;
 
-                                break;
                             case ParseResult.InternalError:
-                                Message = ParseMessage.InternalError;
-                                Done = true;
+                                return ParseMessage.InternalError;
 
-                                break;
                             case ParseResult.ReduceNormal:
-                                Message = ParseMessage.Reduction;
-                                Done = true;
+                                return ParseMessage.Reduction;
 
-                                break;
                             case ParseResult.Shift:
                                 //ParseToken() shifted the token on the front of the Token-Queue. 
                                 //It now exists on the Token-Stack and must be eliminated from the queue.
                                 m_InputTokens.Pop();
-
                                 break;
+
                             case ParseResult.SyntaxError:
-                                Message = ParseMessage.SyntaxError;
-                                Done = true;
+                                //=== Syntax Error! Fill Expected Tokens
+                                m_ExpectedSymbols = m_LALRStack.GetExpectedSymbols();
+                                return ParseMessage.SyntaxError;
 
-                                break;
                             default:
+                                //Do nothing.
                                 break;
-                            //Do nothing.
                         }
                     }
                 }
             }
-
-            return Message;
         }
     }
 }

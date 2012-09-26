@@ -13,22 +13,7 @@ namespace GOLDEngine
     public class Token
     {
         private Symbol m_Parent;
-        private short m_State;
         private Position? m_Position;
-
-        /// <summary>
-        /// Create stack top item. Only needs state.
-        /// </summary>
-        internal static Token CreateFirstToken(short initialLRState)
-        {
-            return new Token(initialLRState);
-        }
-        Token(short initialLRState)
-        {
-            m_Parent = null;
-            m_State = initialLRState;
-            m_Position = null;
-        }
 
         protected Token(Symbol Parent, Position? position, bool isTerminal)
         {
@@ -37,14 +22,7 @@ namespace GOLDEngine
                 throw new ParserException("Unexpected SymbolType");
             }
             m_Parent = Parent;
-            m_State = 0;
             m_Position = position;
-        }
-
-        internal short State
-        {
-            get { return m_State; }
-            set { m_State = value; }
         }
 
         /// <summary>
@@ -53,7 +31,6 @@ namespace GOLDEngine
         public Symbol Parent
         {
             get { return m_Parent; }
-            internal set { m_Parent = value; }
         }
 
         /// <summary>
@@ -76,9 +53,9 @@ namespace GOLDEngine
         public Terminal AsTerminal { get { return this as Terminal; } }
         public Reduction AsReduction { get { return this as Reduction; } }
 
-        internal Group Group()
+        internal void TrimReduction(Symbol newSymbol)
         {
-            return m_Parent.Group;
+            m_Parent = newSymbol;
         }
     }
 }

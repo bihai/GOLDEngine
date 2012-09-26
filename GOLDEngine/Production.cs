@@ -71,7 +71,7 @@ namespace GOLDEngine
         {
             bool Result = false;
 
-            if (m_Handle.Count() == 1)
+            if (m_Handle.Count == 1)
             {
                 if (m_Handle[0].Type == SymbolType.Nonterminal)
                 {

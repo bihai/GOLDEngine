@@ -20,12 +20,14 @@ namespace GOLDEngine.Tables
         private LRStateList m_LRStates;
         //===== Lexical Groups
         private GroupList m_GroupTable;
+        private Dictionary<Symbol, Group> m_GroupStart = new Dictionary<Symbol, Group>();
 
         internal short InitialLRState { get { return m_LRStates.InitialState; } }
         internal short InitialDFAState { get { return m_DFA.InitialState; } }
         internal GrammarProperties Grammar { get { return m_Grammar; } }
         internal ProductionList ProductionTable { get { return m_ProductionTable; } }
         internal SymbolList SymbolTable { get { return m_SymbolTable; } }
+        internal Group GetGroup(Symbol start) { return m_GroupStart[start]; }
 
         internal LRAction FindLRAction(short CurrentLALR, Symbol symbolToFind)
         {
@@ -124,37 +126,29 @@ namespace GOLDEngine.Tables
                             //#, Name, Container#, Start#, End#, Tokenized, Open Ended, Reserved, Count, (Nested Group #...) 
                             {
                                 Group G = new Group();
-                                int Index = 0;
-                                int Count = 0;
-                                int n = 0;
+
+                                G.TableIndex = EGT.RetrieveInt16();
+                                //# 
+
+                                G.Name = EGT.RetrieveString();
+                                G.Container = m_SymbolTable[EGT.RetrieveInt16()];
+                                G.Start = m_SymbolTable[EGT.RetrieveInt16()];
+                                G.End = m_SymbolTable[EGT.RetrieveInt16()];
+
+                                G.Advance = (Group.AdvanceMode)EGT.RetrieveInt16();
+                                G.Ending = (Group.EndingMode)EGT.RetrieveInt16();
+                                EGT.RetrieveEntry();
+                                //Reserved
+
+                                int Count = EGT.RetrieveInt16();
+                                for (int n = 1; n <= Count; n++)
                                 {
-                                    Index = EGT.RetrieveInt16();
-                                    //# 
-
-                                    G.Name = EGT.RetrieveString();
-                                    G.Container = m_SymbolTable[EGT.RetrieveInt16()];
-                                    G.Start = m_SymbolTable[EGT.RetrieveInt16()];
-                                    G.End = m_SymbolTable[EGT.RetrieveInt16()];
-
-                                    G.Advance = (Group.AdvanceMode)EGT.RetrieveInt16();
-                                    G.Ending = (Group.EndingMode)EGT.RetrieveInt16();
-                                    EGT.RetrieveEntry();
-                                    //Reserved
-
-                                    Count = EGT.RetrieveInt16();
-                                    for (n = 1; n <= Count; n++)
-                                    {
-                                        G.Nesting.Add(EGT.RetrieveInt16());
-                                    }
+                                    G.Nesting.Add(EGT.RetrieveInt16());
                                 }
 
-
                                 //=== Link back
-                                G.Container.Group = G;
-                                G.Start.Group = G;
-                                G.End.Group = G;
-
-                                m_GroupTable[Index] = G;
+                                m_GroupStart.Add(G.Start, G);
+                                m_GroupTable[G.TableIndex] = G;
                             }
                             break;
                         case EGTRecord.CharRanges:

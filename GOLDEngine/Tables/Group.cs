@@ -28,6 +28,12 @@ namespace GOLDEngine.Tables
         internal EndingMode Ending;
 
         internal IntegerList Nesting;
+
+        internal bool CanNestGroup(Group otherGroup)
+        {
+            return Nesting.Contains(otherGroup.TableIndex);
+        }
+
         internal Group()
         {
             Advance = AdvanceMode.Character;

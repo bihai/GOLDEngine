@@ -53,16 +53,16 @@ namespace TestGOLDEngine
                 case ParseMessage.LexicalError:
                     //Cannot recognize token
                     FailMessage = "Lexical Error:\n" +
-                                  "Position: " + m_parser.CurrentPosition().Line + ", " + m_parser.CurrentPosition().Column + "\n" +
-                                  "Read: " + m_parser.CurrentToken().ToString();
+                                  "Position: " + m_parser.CurrentPosition.Line + ", " + m_parser.CurrentPosition.Column + "\n" +
+                                  "Read: " + m_parser.CurrentToken.ToString();
                     return false;
 
                 case ParseMessage.SyntaxError:
                     //Expecting a different token
                     FailMessage = "Syntax Error:\n" +
-                                  "Position: " + m_parser.CurrentPosition().Line + ", " + m_parser.CurrentPosition().Column + "\n" +
-                                  "Read: " + m_parser.CurrentToken().ToString() + "\n" +
-                                  "Expecting: " + m_parser.ExpectedSymbols().Text();
+                                  "Position: " + m_parser.CurrentPosition.Line + ", " + m_parser.CurrentPosition.Column + "\n" +
+                                  "Read: " + m_parser.CurrentToken.ToString() + "\n" +
+                                  "Expecting: " + m_parser.ExpectedSymbols.Text();
                     return false;
 
                 case ParseMessage.Reduction:
