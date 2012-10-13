@@ -44,5 +44,10 @@ namespace GOLDEngine
         {
             return m_Text;
         }
+
+        public override void Visit(ITokenVisitor visitor)
+        {
+            visitor.OnTerminal(this);
+        }
     }
 }

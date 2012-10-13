@@ -4,13 +4,16 @@ using System.Text;
 
 using System.IO;
 
+using GOLDEngine;
+
 namespace TestGOLDEngine
 {
     class Program
     {
         static void Main(string[] args)
         {
-            firstTest();
+            // Use the definition of the GOLD meta-language, to test itself.
+            test("Tests\\GOLD Meta-Language (2.6.0).egt", "Tests\\GOLD Meta-Language (2.6.0).grm");
         }
 
         static void assert(bool b)
@@ -19,20 +22,12 @@ namespace TestGOLDEngine
                 throw new ApplicationException();
         }
 
-        static void firstTest()
+        static void test(string grammarFile, string contentFile)
         {
-            // Use the definition of the GOLD meta-language, to test itself.
-            WrapGOLDEngine wrapper;
-            using (Stream grammar = new FileStream("Tests\\GOLD Meta-Language (2.6.0).egt", FileMode.Open))
-            {
-                wrapper = new WrapGOLDEngine(grammar);
-            }
-            using (TextReader content = new StreamReader("Tests\\GOLD Meta-Language (2.6.0).grm"))
-            {
-                GOLDEngine.Reduction reduction = wrapper.Parse(content);
-                assert(reduction != wrapper.Parse(content));
-                //reduction[0].
-            }
+            WrapGOLDEngine driver = new WrapGOLDEngine();
+            driver.LoadTables(grammarFile);
+            Reduction reduction = driver.ParseFile(contentFile);
+            assert(reduction != null);
         }
     }
 }

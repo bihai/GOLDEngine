@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 
@@ -71,9 +72,9 @@ namespace GOLDEngine
         }
 
         [Description("Returns the name of the symbol.")]
-        public string Name()
+        public string Name
         {
-            return m_Name;
+            get { return m_Name; }
         }
 
         [Description("Returns the text representing the text in BNF format.")]
@@ -84,13 +85,13 @@ namespace GOLDEngine
             switch (m_Type)
             {
                 case SymbolType.Nonterminal:
-                    Result = "<" + Name() + ">";
+                    Result = "<" + m_Name + ">";
                     break;
                 case SymbolType.Content:
-                    Result = LiteralFormat(Name(), AlwaysDelimitTerminals);
+                    Result = LiteralFormat(m_Name, AlwaysDelimitTerminals);
                     break;
                 default:
-                    Result = "(" + Name() + ")";
+                    Result = "(" + m_Name + ")";
                     break;
             }
 
@@ -157,6 +158,11 @@ namespace GOLDEngine
             {
                 m_Array.Add(null);
             }
+        }
+
+        public Symbol Find(Predicate<Symbol> match)
+        {
+            return m_Array.Find(match);
         }
 
         [Description("Returns the symbol with the specified index.")]

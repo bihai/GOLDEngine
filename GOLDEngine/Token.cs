@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 
 using GOLDEngine.Tables;
 
@@ -10,7 +10,7 @@ namespace GOLDEngine
     /// Every Token is either a Reduction or a Terminal.
     /// Data associated with the token is contained in the subclass.
     /// </summary>
-    public class Token
+    public abstract class Token
     {
         private Symbol m_Parent;
         private Position? m_Position;
@@ -28,17 +28,22 @@ namespace GOLDEngine
         /// <summary>
         /// Returns the parent symbol of the token.
         /// </summary>
-        public Symbol Parent
+        public Symbol Symbol
         {
             get { return m_Parent; }
+        }
+
+        public string SymbolName
+        {
+            get { return m_Parent.Name; }
         }
 
         /// <summary>
         /// Returns the symbol type associated with this token.
         /// </summary>
-        public SymbolType Type()
+        public SymbolType SymbolType
         {
-            return m_Parent.Type;
+            get { return m_Parent.Type; }
         }
 
         /// <summary>
@@ -53,9 +58,30 @@ namespace GOLDEngine
         public Terminal AsTerminal { get { return this as Terminal; } }
         public Reduction AsReduction { get { return this as Reduction; } }
 
+        public abstract void Visit(ITokenVisitor visitor);
+
         internal void TrimReduction(Symbol newSymbol)
         {
             m_Parent = newSymbol;
+        }
+
+        public string ToText()
+        {
+            TokenToText visitor = new TokenToText();
+            Visit(visitor);
+            return visitor.ToString();
+        }
+
+        public string ToJson()
+        {
+            TokenToJson visitor = new TokenToJson();
+            Visit(visitor);
+            return visitor.ToString();
+        }
+
+        public void ForEachTerminal(Action<Terminal> action)
+        {
+            Visit(new TokenTerminalAction(action));
         }
     }
 }

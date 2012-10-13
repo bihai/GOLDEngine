@@ -51,5 +51,17 @@ namespace GOLDEngine
             get { return m_Tag; }
             set { m_Tag = value; }
         }
+
+        public override string ToString()
+        {
+            //Show the list of symbols which identify this reduction.
+            //Don't show the token values because that would descend the whole tree.
+            return m_production.ToString();
+        }
+
+        public override void Visit(ITokenVisitor visitor)
+        {
+            visitor.OnReduction(this);
+        }
     }
 }

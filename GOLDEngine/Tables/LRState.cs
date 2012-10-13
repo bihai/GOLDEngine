@@ -33,6 +33,11 @@ namespace GOLDEngine.Tables
         public Symbol Symbol;
         public LRActionType Type;
         //shift to state, reduce rule, goto state
+        /// <summary>
+        /// case LRActionType.Shift: GotoState(Value);
+        /// case LRActionType.Accept: ;
+        /// case LRActionType.Reduce: GetProduction(Value);
+        /// </summary>
         public short Value;
 
         public LRAction(Symbol TheSymbol, LRActionType Type, short Value)
